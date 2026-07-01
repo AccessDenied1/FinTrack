@@ -5,21 +5,17 @@ plugins {
 }
 
 android {
-    namespace = "com.sethv.fintrack.feature.home"
+    namespace = "com.sethv.fintrack.feature.networth"
 }
 
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:data"))
     implementation(project(":core:ui"))
-    implementation(project(":service:sms"))
-    implementation(project(":service:parser"))
-    implementation(project(":service:categorizer"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.hilt.navigation.compose)

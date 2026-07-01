@@ -3,8 +3,10 @@ package com.sethv.fintrack.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.sethv.fintrack.core.database.FinTrackDatabase
+import com.sethv.fintrack.core.database.dao.BalanceSettingsDao
 import com.sethv.fintrack.core.database.dao.PendingTransactionDao
 import com.sethv.fintrack.core.database.dao.TransactionDao
+import com.sethv.fintrack.core.database.migration.MIGRATION_1_2
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,7 +26,9 @@ object DatabaseModule {
         context,
         FinTrackDatabase::class.java,
         "fintrack.db",
-    ).build()
+    )
+        .addMigrations(MIGRATION_1_2)
+        .build()
 
     @Provides
     fun provideTransactionDao(database: FinTrackDatabase): TransactionDao =
@@ -33,4 +37,8 @@ object DatabaseModule {
     @Provides
     fun providePendingTransactionDao(database: FinTrackDatabase): PendingTransactionDao =
         database.pendingTransactionDao()
+
+    @Provides
+    fun provideBalanceSettingsDao(database: FinTrackDatabase): BalanceSettingsDao =
+        database.balanceSettingsDao()
 }

@@ -14,17 +14,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -49,8 +53,10 @@ fun HomeScreen(
     onNavigateToExpenseList: () -> Unit,
     onNavigateToReview: (Long) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
+    scanSmsViewModel: ScanSmsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scanState by scanSmsViewModel.scanState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val smsPermissions = arrayOf(
@@ -113,6 +119,7 @@ fun HomeScreen(
     ) { paddingValues ->
         HomeContent(
             uiState = uiState,
+            scanState = scanState,
             paddingValues = paddingValues,
             onRequestSmsPermission = { smsPermissionLauncher.launch(smsPermissions) },
             onRequestNotificationPermission = {
@@ -120,6 +127,9 @@ fun HomeScreen(
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
+            onStartScan = scanSmsViewModel::startScan,
+            onResetScanState = scanSmsViewModel::resetScanState,
+            onNavigateToExpenseList = onNavigateToExpenseList,
         )
     }
 }
@@ -127,9 +137,13 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
+    scanState: ScanState,
     paddingValues: PaddingValues,
     onRequestSmsPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onStartScan: () -> Unit,
+    onResetScanState: () -> Unit,
+    onNavigateToExpenseList: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier
@@ -154,6 +168,17 @@ private fun HomeContent(
                     title = "Notification Permission Required",
                     description = "Allow notifications to review new transactions as they are detected.",
                     onGrantClick = onRequestNotificationPermission,
+                )
+            }
+        }
+
+        if (uiState.hasSmsPermission) {
+            item {
+                ScanPastSmsCard(
+                    scanState = scanState,
+                    onStartScan = onStartScan,
+                    onResetScanState = onResetScanState,
+                    onNavigateToExpenseList = onNavigateToExpenseList,
                 )
             }
         }
@@ -210,6 +235,103 @@ private fun HomeContent(
 
         item {
             Spacer(modifier = Modifier.height(72.dp))
+        }
+    }
+}
+
+@Composable
+private fun ScanPastSmsCard(
+    scanState: ScanState,
+    onStartScan: () -> Unit,
+    onResetScanState: () -> Unit,
+    onNavigateToExpenseList: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+        ) {
+            when (scanState.status) {
+                ScanStatus.IDLE -> {
+                    Text(
+                        text = "Import Past Transactions",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Import transactions from your existing SMS messages",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = onStartScan) {
+                        Text("Scan Past SMS")
+                    }
+                }
+
+                ScanStatus.SCANNING -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        Text(
+                            text = "Scanning SMS...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+
+                ScanStatus.COMPLETED -> {
+                    Text(
+                        text = "Found ${scanState.transactionsFound} transaction${if (scanState.transactionsFound == 1) "" else "s"}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (scanState.transactionsFound > 0) {
+                            Button(onClick = onNavigateToExpenseList) {
+                                Text("Review All")
+                            }
+                        }
+                        OutlinedButton(onClick = onResetScanState) {
+                            Text("Done")
+                        }
+                    }
+                }
+
+                ScanStatus.ERROR -> {
+                    Text(
+                        text = "Scan failed",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Could not read SMS messages. Check permissions and try again.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = {
+                        onResetScanState()
+                        onStartScan()
+                    }) {
+                        Text("Retry")
+                    }
+                }
+            }
         }
     }
 }

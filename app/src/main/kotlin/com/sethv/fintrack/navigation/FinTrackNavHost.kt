@@ -10,17 +10,19 @@ import androidx.navigation.navArgument
 import com.sethv.fintrack.feature.expense.ExpenseListScreen
 import com.sethv.fintrack.feature.expense.ReviewScreen
 import com.sethv.fintrack.feature.home.HomeScreen
+import com.sethv.fintrack.feature.networth.NetWorthScreen
 
 sealed class Route(val route: String) {
     data object Home : Route("home")
 
     data object ExpenseReview : Route("expense/review/{pendingId}") {
         const val ARG_PENDING_ID = "pendingId"
-
         fun createRoute(pendingId: Long): String = "expense/review/$pendingId"
     }
 
     data object ExpenseList : Route("expense/list")
+
+    data object NetWorth : Route("networth")
 }
 
 @Composable
@@ -65,6 +67,9 @@ fun FinTrackNavHost(
             ExpenseListScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
+        }
+        composable(Route.NetWorth.route) {
+            NetWorthScreen()
         }
     }
 }
