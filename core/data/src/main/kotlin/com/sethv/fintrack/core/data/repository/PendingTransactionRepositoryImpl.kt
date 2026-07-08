@@ -19,6 +19,13 @@ class PendingTransactionRepositoryImpl @Inject constructor(
     override fun getAllPending(): Flow<List<PendingTransaction>> =
         pendingTransactionDao.getAll().map { entities -> entities.map { it.toDomain() } }
 
+    override fun getPending(): Flow<List<PendingTransaction>> =
+        pendingTransactionDao.getByStatus(PendingStatus.PENDING.name)
+            .map { entities -> entities.map { it.toDomain() } }
+
+    override fun getPendingCount(): Flow<Int> =
+        pendingTransactionDao.countByStatus(PendingStatus.PENDING.name)
+
     override suspend fun getPendingById(id: Long): PendingTransaction? =
         pendingTransactionDao.getById(id)?.toDomain()
 
@@ -28,6 +35,16 @@ class PendingTransactionRepositoryImpl @Inject constructor(
 
     override suspend fun rejectPending(id: Long) {
         pendingTransactionDao.updateStatus(id, PendingStatus.REJECTED.name)
+    }
+
+    override suspend fun acceptAllPending(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        pendingTransactionDao.updateStatusBulk(ids, PendingStatus.ACCEPTED.name)
+    }
+
+    override suspend fun rejectAllPending(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        pendingTransactionDao.updateStatusBulk(ids, PendingStatus.REJECTED.name)
     }
 
     override suspend fun deletePending(id: Long) {

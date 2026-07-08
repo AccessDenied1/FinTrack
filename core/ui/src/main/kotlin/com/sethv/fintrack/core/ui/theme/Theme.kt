@@ -1,15 +1,13 @@
 package com.sethv.fintrack.core.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
 private val LightColorScheme = lightColorScheme(
     primary = GreenPrimary,
@@ -33,6 +31,8 @@ private val LightColorScheme = lightColorScheme(
     outline = OutlineLight,
     error = ErrorLight,
     onError = Color.White,
+    errorContainer = DebitRedContainer,
+    onErrorContainer = OnDebitRedContainer,
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -57,26 +57,63 @@ private val DarkColorScheme = darkColorScheme(
     outline = OutlineDark,
     error = ErrorDark,
     onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
 )
+
+/**
+ * Brand-specific colors that the M3 ColorScheme can't model directly.
+ * Reads of [CreditGreen]/[DebitRed] should go through this CompositionLocal
+ * so they follow the dark/light theme correctly.
+ */
+data class FinTrackColors(
+    val credit: Color,
+    val onCredit: Color,
+    val debit: Color,
+    val onDebit: Color,
+)
+
+val LocalFinTrackColors = staticCompositionLocalOf {
+    FinTrackColors(
+        credit = CreditGreen,
+        onCredit = Color.White,
+        debit = DebitRed,
+        onDebit = Color.White,
+    )
+}
 
 @Composable
 fun FinTrackTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    /** Brand-first by default; set true to follow Material You on Android 12+. */
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    // dynamicColor branch is intentionally disabled by default — brand identity
+    // wins over Material You. Flip the flag if you want to A/B test.
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
+    val finTrackColors = if (darkTheme) {
+        FinTrackColors(
+            credit = CreditGreen,
+            onCredit = Color.White,
+            debit = DebitRed,
+            onDebit = Color.White,
+        )
+    } else {
+        FinTrackColors(
+            credit = CreditGreen,
+            onCredit = Color.White,
+            debit = DebitRed,
+            onDebit = Color.White,
+        )
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = FinTrackTypography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalFinTrackColors provides finTrackColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = FinTrackTypography,
+            content = content,
+        )
+    }
 }

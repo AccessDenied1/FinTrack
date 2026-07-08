@@ -7,8 +7,8 @@ import com.sethv.fintrack.core.data.repository.PendingTransactionRepository
 import com.sethv.fintrack.core.data.repository.TransactionRepository
 import com.sethv.fintrack.core.model.ExpenseCategory
 import com.sethv.fintrack.core.model.PendingTransaction
-import com.sethv.fintrack.core.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class ReviewUiState(
     val isLoading: Boolean = true,
@@ -102,19 +101,13 @@ class ReviewViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = null) }
             try {
-                val transaction = Transaction(
+                transactionRepository.acceptPending(
+                    pending = pending,
                     amount = _uiState.value.amount,
                     merchant = _uiState.value.merchant,
                     category = _uiState.value.category,
-                    type = pending.type,
-                    dateTime = pending.dateTime,
-                    bank = pending.bank,
                     notes = _uiState.value.notes,
-                    smsBody = pending.smsBody,
-                    createdAt = pending.createdAt,
                 )
-                transactionRepository.insertTransaction(transaction)
-                pendingTransactionRepository.acceptPending(pending.id)
                 _uiState.update { it.copy(isSaving = false) }
                 _accepted.emit(Unit)
             } catch (e: Exception) {

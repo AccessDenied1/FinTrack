@@ -18,15 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -43,21 +41,37 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sethv.fintrack.core.ui.component.CategoryDonutChart
+import com.sethv.fintrack.core.ui.component.DonutSlice
+import com.sethv.fintrack.core.ui.component.EmptyState
 import com.sethv.fintrack.core.ui.component.PermissionCard
+import com.sethv.fintrack.core.ui.component.SectionHeader
 import com.sethv.fintrack.core.ui.component.TransactionItem
-import java.util.Locale
+import com.sethv.fintrack.core.ui.theme.FinTrackSpacing
+import com.sethv.fintrack.core.ui.theme.LocalFinTrackColors
+import com.sethv.fintrack.core.ui.util.Format
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToExpenseList: () -> Unit,
     onNavigateToReview: (Long) -> Unit,
+    onNavigateToReviewTab: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
     scanSmsViewModel: ScanSmsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scanState by scanSmsViewModel.scanState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    LaunchedEffect(scanSmsViewModel) {
+        scanSmsViewModel.navEvents.collect { event ->
+            if (event is ScanNavEvent.NavigateToReview) {
+                onNavigateToReviewTab()
+                scanSmsViewModel.onNavHandled()
+            }
+        }
+    }
 
     val smsPermissions = arrayOf(
         Manifest.permission.RECEIVE_SMS,
@@ -103,19 +117,7 @@ fun HomeScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("FinTrack") },
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToExpenseList) {
-                Icon(
-                    imageVector = Icons.Default.List,
-                    contentDescription = "View all expenses",
-                )
-            }
-        },
+        topBar = { TopAppBar(title = { Text("FinTrack") }) },
     ) { paddingValues ->
         HomeContent(
             uiState = uiState,
@@ -149,8 +151,8 @@ private fun HomeContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = FinTrackSpacing.Md, vertical = FinTrackSpacing.Md),
+        verticalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
     ) {
         if (!uiState.hasSmsPermission) {
             item {
@@ -183,45 +185,39 @@ private fun HomeContent(
             }
         }
 
-        item {
-            MonthlySummaryCard(monthlyTotal = uiState.monthlyTotal)
-        }
+        item { MonthlySummaryCard(uiState = uiState) }
 
         if (uiState.categoryBreakdown.isNotEmpty()) {
             item {
-                Text(
-                    text = "Spending by Category",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                SectionHeader(title = "Spending by Category")
             }
-
             item {
                 CategoryBreakdownCard(breakdown = uiState.categoryBreakdown)
             }
         }
 
         item {
-            Text(
-                text = "Recent Transactions",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
+            SectionHeader(
+                title = "Recent Transactions",
+                trailing = {
+                    androidx.compose.material3.TextButton(onClick = onNavigateToExpenseList) {
+                        Text("View all")
+                    }
+                },
             )
         }
 
         if (uiState.recentTransactions.isEmpty()) {
             item {
-                Text(
-                    text = "No transactions yet. Expenses will appear here once detected from SMS.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                EmptyState(
+                    icon = Icons.Outlined.ReceiptLong,
+                    title = "No transactions yet",
+                    subtitle = "Expenses will appear here once detected from SMS.",
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         } else {
-            items(
-                items = uiState.recentTransactions,
-                key = { it.id },
-            ) { transaction ->
+            items(items = uiState.recentTransactions, key = { it.id }) { transaction ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -233,9 +229,7 @@ private fun HomeContent(
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(72.dp))
-        }
+        item { Spacer(modifier = Modifier.height(FinTrackSpacing.Md)) }
     }
 }
 
@@ -252,9 +246,7 @@ private fun ScanPastSmsCard(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-        ) {
+        Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
             when (scanState.status) {
                 ScanStatus.IDLE -> {
                     Text(
@@ -262,22 +254,19 @@ private fun ScanPastSmsCard(
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
                     Text(
-                        text = "Import transactions from your existing SMS messages",
+                        text = "Scan your SMS inbox to import historical bank transactions for review.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(onClick = onStartScan) {
-                        Text("Scan Past SMS")
-                    }
+                    Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
+                    Button(onClick = onStartScan) { Text("Scan Past SMS") }
                 }
-
                 ScanStatus.SCANNING -> {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
@@ -291,45 +280,37 @@ private fun ScanPastSmsCard(
                         )
                     }
                 }
-
                 ScanStatus.COMPLETED -> {
                     Text(
                         text = "Found ${scanState.transactionsFound} transaction${if (scanState.transactionsFound == 1) "" else "s"}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
+                    Row(horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm)) {
                         if (scanState.transactionsFound > 0) {
-                            Button(onClick = onNavigateToExpenseList) {
-                                Text("Review All")
-                            }
+                            Button(onClick = onNavigateToExpenseList) { Text("Review All") }
                         }
-                        OutlinedButton(onClick = onResetScanState) {
-                            Text("Done")
-                        }
+                        OutlinedButton(onClick = onResetScanState) { Text("Done") }
                     }
                 }
-
                 ScanStatus.ERROR -> {
                     Text(
                         text = "Scan failed",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
                     Text(
                         text = "Could not read SMS messages. Check permissions and try again.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
                     Button(onClick = {
                         onResetScanState()
                         onStartScan()
-                    }) {
-                        Text("Retry")
-                    }
+                    }) { Text("Retry") }
                 }
             }
         }
@@ -337,25 +318,32 @@ private fun ScanPastSmsCard(
 }
 
 @Composable
-private fun MonthlySummaryCard(monthlyTotal: Double) {
+private fun MonthlySummaryCard(uiState: HomeUiState) {
+    val delta = uiState.monthlyTotal - uiState.previousMonthTotal
+    val deltaLabel = when {
+        uiState.previousMonthTotal == 0.0 && uiState.monthlyTotal == 0.0 -> "—"
+        uiState.previousMonthTotal == 0.0 -> "—"
+        delta > 0 -> "+${Format.currency(delta)} vs last month"
+        delta < 0 -> "-${Format.currency(-delta)} vs last month"
+        else -> "Same as last month"
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-        ) {
+        Column(modifier = Modifier.padding(FinTrackSpacing.Lg)) {
             Text(
                 text = "This Month",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
             Text(
-                text = formatMonthlyTotal(monthlyTotal),
-                style = MaterialTheme.typography.headlineLarge,
+                text = Format.currency(uiState.monthlyTotal),
+                style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -364,64 +352,38 @@ private fun MonthlySummaryCard(monthlyTotal: Double) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
+            Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
+            val deltaColor = when {
+                delta > 0 -> LocalFinTrackColors.current.debit
+                delta < 0 -> LocalFinTrackColors.current.credit
+                else -> MaterialTheme.colorScheme.onPrimaryContainer
+            }
+            Text(
+                text = deltaLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = deltaColor,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
 
-private fun formatMonthlyTotal(amount: Double): String {
-    val formatted = if (amount % 1.0 == 0.0) {
-        amount.toLong().toString()
-    } else {
-        String.format(Locale.getDefault(), "%.2f", amount)
-    }
-    return "₹$formatted"
-}
-
 @Composable
-private fun CategoryBreakdownCard(
-    breakdown: List<CategorySpending>,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            breakdown.forEach { spending ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = spending.category.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        LinearProgressIndicator(
-                            progress = { spending.percentage / 100f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp, end = 16.dp),
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = formatMonthlyTotal(spending.amount),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "${String.format(Locale.getDefault(), "%.0f", spending.percentage)}%",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+private fun CategoryBreakdownCard(breakdown: List<CategorySpending>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
+            val slices = breakdown.mapIndexed { idx, s ->
+                DonutSlice(
+                    label = s.category.displayName,
+                    value = s.percentage,
+                    colorIndex = idx,
+                )
             }
+            CategoryDonutChart(
+                slices = slices,
+                centerLabel = "Total",
+                centerSubLabel = "${breakdown.size} categories",
+            )
         }
     }
 }

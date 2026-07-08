@@ -13,6 +13,9 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: TransactionEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entities: List<TransactionEntity>): List<Long>
+
     @Query("SELECT * FROM transactions ORDER BY dateTime DESC")
     fun getAll(): Flow<List<TransactionEntity>>
 

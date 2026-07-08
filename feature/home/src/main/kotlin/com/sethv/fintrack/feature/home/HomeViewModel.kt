@@ -25,6 +25,7 @@ data class CategorySpending(
 data class HomeUiState(
     val recentTransactions: List<Transaction> = emptyList(),
     val monthlyTotal: Double = 0.0,
+    val previousMonthTotal: Double = 0.0,
     val categoryBreakdown: List<CategorySpending> = emptyList(),
     val hasSmsPermission: Boolean = false,
     val hasNotificationPermission: Boolean = false,
@@ -60,15 +61,19 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadTransactions() {
-        val (startTime, endTime) = currentMonthRange()
+        val current = currentMonthRange()
+        val previous = previousMonthRange()
         viewModelScope.launch {
             combine(
                 transactionRepository.getAllTransactions(),
-                transactionRepository.getTransactionsByDateRange(startTime, endTime),
-            ) { allTransactions, monthlyTransactions ->
-                val debitTransactions = monthlyTransactions
-                    .filter { it.type == TransactionType.DEBIT }
+                transactionRepository.getTransactionsByDateRange(current.first, current.second),
+                transactionRepository.getTransactionsByDateRange(previous.first, previous.second),
+            ) { all, monthly, prevMonthly ->
+                val debitTransactions = monthly.filter { it.type == TransactionType.DEBIT }
                 val monthlyTotal = debitTransactions.sumOf { it.amount }
+                val previousMonthTotal = prevMonthly
+                    .filter { it.type == TransactionType.DEBIT }
+                    .sumOf { it.amount }
 
                 val categoryBreakdown = debitTransactions
                     .groupBy { it.category }
@@ -83,8 +88,9 @@ class HomeViewModel @Inject constructor(
                     .sortedByDescending { it.amount }
 
                 HomeUiState(
-                    recentTransactions = allTransactions.take(5),
+                    recentTransactions = all.take(5),
                     monthlyTotal = monthlyTotal,
+                    previousMonthTotal = previousMonthTotal,
                     categoryBreakdown = categoryBreakdown,
                     hasSmsPermission = _uiState.value.hasSmsPermission,
                     hasNotificationPermission = _uiState.value.hasNotificationPermission,
@@ -105,6 +111,14 @@ class HomeViewModel @Inject constructor(
         val today = LocalDate.now(zone)
         val start = today.withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val end = today.plusMonths(1).withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return start to end
+    }
+
+    private fun previousMonthRange(): Pair<Long, Long> {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val start = today.minusMonths(1).withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = today.withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
         return start to end
     }
 }

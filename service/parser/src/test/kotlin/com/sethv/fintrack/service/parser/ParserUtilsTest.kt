@@ -2,6 +2,7 @@ package com.sethv.fintrack.service.parser
 
 import com.sethv.fintrack.core.model.TransactionType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,16 +35,25 @@ class ParserUtilsTest {
     }
 
     @Test
+    fun `parseAmount extracts rupee symbol`() {
+        assertEquals(450.0, ParserUtils.parseAmount("₹450.00 debited from a/c")!!, 0.01)
+        assertEquals(75.5, ParserUtils.parseAmount("₹75.50 paid to merchant")!!, 0.01)
+        assertEquals(1200.0, ParserUtils.parseAmount("Amount: ₹1,200.00 credited")!!, 0.01)
+    }
+
+    @Test
     fun `detectTransactionType identifies debit`() {
         assertEquals(TransactionType.DEBIT, ParserUtils.detectTransactionType("Rs.500 debited from account"))
         assertEquals(TransactionType.DEBIT, ParserUtils.detectTransactionType("Paid Rs 200 to merchant"))
         assertEquals(TransactionType.DEBIT, ParserUtils.detectTransactionType("Rs 100 spent at store"))
+        assertEquals(TransactionType.DEBIT, ParserUtils.detectTransactionType("Rs.300 sent to friend"))
     }
 
     @Test
     fun `detectTransactionType identifies credit`() {
         assertEquals(TransactionType.CREDIT, ParserUtils.detectTransactionType("Rs.5000 credited to account"))
         assertEquals(TransactionType.CREDIT, ParserUtils.detectTransactionType("Rs 1000 received from person"))
+        assertEquals(TransactionType.CREDIT, ParserUtils.detectTransactionType("Rs 200 refund processed"))
     }
 
     @Test
@@ -97,15 +107,16 @@ class ParserUtilsTest {
         assertTrue(ParserUtils.looksLikeTransactionSms("Rs.500 debited from account"))
         assertTrue(ParserUtils.looksLikeTransactionSms("Rs 1000 credited to account"))
         assertTrue(ParserUtils.looksLikeTransactionSms("Paid Rs 200 via UPI"))
+        assertTrue(ParserUtils.looksLikeTransactionSms("Rs.300 sent to John"))
+        assertTrue(ParserUtils.looksLikeTransactionSms("Rs 750 received from ACME"))
+        assertTrue(ParserUtils.looksLikeTransactionSms("Txn: Rs.250 spent at store"))
+        assertTrue(ParserUtils.looksLikeTransactionSms("Transaction of Rs 900 completed"))
     }
 
     @Test
     fun `looksLikeTransactionSms rejects non-transaction SMS`() {
         assertTrue(!ParserUtils.looksLikeTransactionSms("Your OTP is 123456"))
         assertTrue(!ParserUtils.looksLikeTransactionSms("Your order has been shipped"))
-    }
-
-    private fun assertNotNull(value: Any?) {
-        org.junit.Assert.assertNotNull(value)
+        assertTrue(!ParserUtils.looksLikeTransactionSms("Flash sale today!"))
     }
 }

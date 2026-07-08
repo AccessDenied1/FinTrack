@@ -3,6 +3,7 @@ package com.sethv.fintrack.service.parser.di
 import com.sethv.fintrack.service.parser.CompositeSmsParser
 import com.sethv.fintrack.service.parser.SmsParser
 import com.sethv.fintrack.service.parser.impl.AxisBankParser
+import com.sethv.fintrack.service.parser.impl.GenericTransactionParser
 import com.sethv.fintrack.service.parser.impl.GenericUpiParser
 import com.sethv.fintrack.service.parser.impl.HdfcBankParser
 import com.sethv.fintrack.service.parser.impl.IciciBankParser
@@ -25,6 +26,7 @@ object ParserModule {
         iciciBankParser: IciciBankParser,
         axisBankParser: AxisBankParser,
         genericUpiParser: GenericUpiParser,
+        genericTransactionParser: GenericTransactionParser,
     ): SmsParser = CompositeSmsParser(
         linkedSetOf(
             hdfcBankParser,
@@ -32,6 +34,7 @@ object ParserModule {
             iciciBankParser,
             axisBankParser,
             genericUpiParser,
+            genericTransactionParser, // fallback: must be last
         ),
     )
 }

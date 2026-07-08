@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.sethv.fintrack.core.model.PendingTransaction
+import com.sethv.fintrack.core.model.TransactionType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
@@ -19,8 +20,12 @@ class TransactionNotifierImpl @Inject constructor(
     override fun showTransactionNotification(pendingTransaction: PendingTransaction) {
         createNotificationChannel()
 
+        val verb = when (pendingTransaction.type) {
+            TransactionType.CREDIT -> "received"
+            TransactionType.DEBIT -> "spent"
+        }
         val contentText = buildString {
-            append("₹${formatAmount(pendingTransaction.amount)} spent at ${pendingTransaction.merchant}")
+            append("₹${formatAmount(pendingTransaction.amount)} $verb at ${pendingTransaction.merchant}")
             append("\nCategory: ${pendingTransaction.category.displayName}")
         }
 
@@ -41,10 +46,15 @@ class TransactionNotifierImpl @Inject constructor(
             .setContentIntent(pendingIntent)
             .build()
 
-        NotificationManagerCompat.from(context).notify(
-            pendingTransaction.id.toInt(),
-            notification,
-        )
+        try {
+            NotificationManagerCompat.from(context).notify(
+                pendingTransaction.id.toInt(),
+                notification,
+            )
+        } catch (se: SecurityException) {
+            // POST_NOTIFICATIONS denied on Android 13+; not fatal.
+            android.util.Log.w(TAG, "Notification not posted — permission denied", se)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -79,6 +89,7 @@ class TransactionNotifierImpl @Inject constructor(
         }
 
     companion object {
+        private const val TAG = "FinTrack.Notifier"
         const val CHANNEL_ID = "transaction_alerts"
         private const val CHANNEL_NAME = "Transaction Alerts"
         const val ACTION_REVIEW_TRANSACTION = "com.sethv.fintrack.action.REVIEW_TRANSACTION"

@@ -12,4 +12,6 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:common"))
     implementation(libs.kotlinx.coroutines.core)
+    // withTransaction(...) for atomic bulk-accept across transaction + pending tables.
+    implementation(libs.room.ktx)
 }

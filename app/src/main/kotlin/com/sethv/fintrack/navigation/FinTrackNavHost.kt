@@ -11,9 +11,12 @@ import com.sethv.fintrack.feature.expense.ExpenseListScreen
 import com.sethv.fintrack.feature.expense.ReviewScreen
 import com.sethv.fintrack.feature.home.HomeScreen
 import com.sethv.fintrack.feature.networth.NetWorthScreen
+import com.sethv.fintrack.feature.review.PendingReviewScreen
 
 sealed class Route(val route: String) {
     data object Home : Route("home")
+
+    data object PendingReview : Route("review")
 
     data object ExpenseReview : Route("expense/review/{pendingId}") {
         const val ARG_PENDING_ID = "pendingId"
@@ -41,6 +44,22 @@ fun FinTrackNavHost(
                     navController.navigate(Route.ExpenseList.route)
                 },
                 onNavigateToReview = { pendingId ->
+                    navController.navigate(Route.ExpenseReview.createRoute(pendingId)) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToReviewTab = {
+                    navController.navigate(Route.PendingReview.route) {
+                        popUpTo(Route.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+            )
+        }
+        composable(Route.PendingReview.route) {
+            PendingReviewScreen(
+                onOpenItem = { pendingId ->
                     navController.navigate(Route.ExpenseReview.createRoute(pendingId)) {
                         launchSingleTop = true
                     }
