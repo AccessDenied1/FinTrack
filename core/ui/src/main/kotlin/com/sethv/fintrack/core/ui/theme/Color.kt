@@ -3,20 +3,20 @@ package com.sethv.fintrack.core.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Brand colors
-val GreenPrimary = Color(0xFF1B7A4E)
-val GreenPrimaryDark = Color(0xFF4CAF7A)
-val GreenContainer = Color(0xFFB8E6CC)
-val GreenContainerDark = Color(0xFF1E4D35)
+val GreenPrimary = Color(0xFF0F9D58) // Vibrant Google Green
+val GreenPrimaryDark = Color(0xFF1CE885) // Neon mint for dark mode
+val GreenContainer = Color(0xFFE6F4EA)
+val GreenContainerDark = Color(0xFF0A3D24)
 
-val BlueSecondary = Color(0xFF1565C0)
-val BlueSecondaryDark = Color(0xFF64B5F6)
-val BlueContainer = Color(0xFFD0E4FF)
-val BlueContainerDark = Color(0xFF1A3A5C)
+val BlueSecondary = Color(0xFF1A73E8) // Crisp Google Blue
+val BlueSecondaryDark = Color(0xFF669DF6)
+val BlueContainer = Color(0xFFE8F0FE)
+val BlueContainerDark = Color(0xFF132F53)
 
-val TealTertiary = Color(0xFF00838F)
-val TealTertiaryDark = Color(0xFF4DD0E1)
-val TealContainer = Color(0xFFB2EBF2)
-val TealContainerDark = Color(0xFF004D57)
+val TealTertiary = Color(0xFF009688)
+val TealTertiaryDark = Color(0xFF4DB6AC)
+val TealContainer = Color(0xFFE0F2F1)
+val TealContainerDark = Color(0xFF00332F)
 
 // Surfaces
 val BackgroundLight = Color(0xFFF5F9F7)

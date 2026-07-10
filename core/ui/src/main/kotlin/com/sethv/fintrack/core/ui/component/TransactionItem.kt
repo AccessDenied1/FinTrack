@@ -26,16 +26,27 @@ fun TransactionItem(
     ListItem(
         modifier = modifier,
         leadingContent = {
-            Icon(
-                imageVector = categoryIcon(transaction.category),
-                contentDescription = transaction.category.displayName,
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .androidx.compose.foundation.layout.size(48.dp)
+                    .androidx.compose.foundation.background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    ),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Icon(
+                    imageVector = categoryIcon(transaction.category),
+                    contentDescription = transaction.category.displayName,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
         },
         headlineContent = {
             Text(
                 text = transaction.merchant,
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
             )
         },
         supportingContent = {
@@ -46,10 +57,11 @@ fun TransactionItem(
             )
         },
         trailingContent = {
-            Column {
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                 Text(
                     text = Format.currency(transaction.amount),
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }

@@ -132,6 +132,7 @@ fun HomeScreen(
             onStartScan = scanSmsViewModel::startScan,
             onResetScanState = scanSmsViewModel::resetScanState,
             onNavigateToExpenseList = onNavigateToExpenseList,
+            onNavigateToReviewTab = onNavigateToReviewTab,
         )
     }
 }
@@ -146,6 +147,7 @@ private fun HomeContent(
     onStartScan: () -> Unit,
     onResetScanState: () -> Unit,
     onNavigateToExpenseList: () -> Unit,
+    onNavigateToReviewTab: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier
@@ -180,7 +182,7 @@ private fun HomeContent(
                     scanState = scanState,
                     onStartScan = onStartScan,
                     onResetScanState = onResetScanState,
-                    onNavigateToExpenseList = onNavigateToExpenseList,
+                    onNavigateToReviewTab = onNavigateToReviewTab,
                 )
             }
         }
@@ -238,7 +240,7 @@ private fun ScanPastSmsCard(
     scanState: ScanState,
     onStartScan: () -> Unit,
     onResetScanState: () -> Unit,
-    onNavigateToExpenseList: () -> Unit,
+    onNavigateToReviewTab: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -289,7 +291,7 @@ private fun ScanPastSmsCard(
                     Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
                     Row(horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm)) {
                         if (scanState.transactionsFound > 0) {
-                            Button(onClick = onNavigateToExpenseList) { Text("Review All") }
+                            Button(onClick = onNavigateToReviewTab) { Text("Review All") }
                         }
                         OutlinedButton(onClick = onResetScanState) { Text("Done") }
                     }
@@ -333,37 +335,41 @@ private fun MonthlySummaryCard(uiState: HomeUiState) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
     ) {
-        Column(modifier = Modifier.padding(FinTrackSpacing.Lg)) {
+        Column(modifier = Modifier.padding(24.dp)) {
             Text(
-                text = "This Month",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                text = "Total Spending This Month",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
             )
-            Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = Format.currency(uiState.monthlyTotal),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            Text(
-                text = "Total spending",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
+            Spacer(modifier = Modifier.height(16.dp))
+            
             val deltaColor = when {
                 delta > 0 -> LocalFinTrackColors.current.debit
                 delta < 0 -> LocalFinTrackColors.current.credit
-                else -> MaterialTheme.colorScheme.onPrimaryContainer
+                else -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
             }
-            Text(
-                text = deltaLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = deltaColor,
-                fontWeight = FontWeight.SemiBold,
-            )
+            
+            androidx.compose.material3.Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = deltaLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = deltaColor,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
         }
     }
 }
