@@ -13,6 +13,13 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 
 /**
  * Single shared transaction row used by Home, Expense list, and Review screens.
@@ -26,14 +33,14 @@ fun TransactionItem(
     ListItem(
         modifier = modifier,
         leadingContent = {
-            androidx.compose.foundation.layout.Box(
+            Box(
                 modifier = Modifier
-                    .androidx.compose.foundation.layout.size(48.dp)
-                    .androidx.compose.foundation.background(
+                    .size(48.dp)
+                    .background(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = androidx.compose.foundation.shape.CircleShape
+                        shape = CircleShape
                     ),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = categoryIcon(transaction.category),
@@ -46,7 +53,7 @@ fun TransactionItem(
             Text(
                 text = transaction.merchant,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                fontWeight = FontWeight.SemiBold,
             )
         },
         supportingContent = {
@@ -57,11 +64,11 @@ fun TransactionItem(
             )
         },
         trailingContent = {
-            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = Format.currency(transaction.amount),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }
