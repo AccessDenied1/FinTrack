@@ -1,5 +1,12 @@
 package com.sethv.fintrack.feature.review
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +42,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -75,7 +84,12 @@ fun PendingReviewScreen(
         topBar = { TopAppBar(title = { Text("Review") }) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (uiState.items.isNotEmpty()) {
+            // Slides away when the last item is handled, slides back on new SMS.
+            AnimatedVisibility(
+                visible = uiState.items.isNotEmpty(),
+                enter = slideInVertically(animationSpec = tween(250)) { it } + fadeIn(tween(250)),
+                exit = slideOutVertically(animationSpec = tween(200)) { it } + fadeOut(tween(200)),
+            ) {
                 BottomActionBar(
                     itemCount = uiState.items.size,
                     onAcceptAll = viewModel::acceptAll,
@@ -98,6 +112,7 @@ fun PendingReviewScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PendingList(
     items: List<PendingTransaction>,
@@ -127,6 +142,8 @@ private fun PendingList(
         items(items = items, key = { it.id }) { item ->
             PendingCard(
                 item = item,
+                // Rows slide smoothly as siblings are accepted/rejected.
+                modifier = Modifier.animateItemPlacement(),
                 onAccept = { onAccept(item) },
                 onReject = { onReject(item) },
                 onOpen = { onOpen(item.id) },
@@ -135,13 +152,16 @@ private fun PendingList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PendingCard(
     item: PendingTransaction,
+    modifier: Modifier = Modifier,
     onAccept: () -> Unit,
     onReject: () -> Unit,
     onOpen: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
     val accent = if (item.type == TransactionType.CREDIT) {
         MaterialTheme.colorScheme.tertiaryContainer
     } else {
@@ -154,7 +174,7 @@ private fun PendingCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         onClick = onOpen,
     ) {
@@ -166,13 +186,19 @@ private fun PendingCard(
                 horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm),
             ) {
                 OutlinedButton(
-                    onClick = onReject,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onReject()
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("Skip")
                 }
                 Button(
-                    onClick = onAccept,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAccept()
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("Accept")
@@ -181,8 +207,9 @@ private fun PendingCard(
             Spacer(modifier = Modifier.height(FinTrackSpacing.Xs))
             // Tiny accent strip so the user sees the type at a glance.
             Surface(color = accent, contentColor = onAccent, shape = MaterialTheme.shapes.extraSmall) {
+                val typeLabel = if (item.type == TransactionType.CREDIT) "Received" else "Spent"
                 Text(
-                    text = "${item.type.name} • ${formatTimestamp(item.dateTime)} • ${item.bank.ifBlank { "Unknown" }}",
+                    text = "$typeLabel • ${formatTimestamp(item.dateTime)} • ${item.bank.ifBlank { "Unknown" }}",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = FinTrackSpacing.Sm, vertical = 2.dp),
                 )

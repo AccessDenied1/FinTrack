@@ -1,13 +1,14 @@
 package com.sethv.fintrack.service.sms
 
+import android.util.Log
 import com.sethv.fintrack.core.data.repository.PendingTransactionRepository
 import com.sethv.fintrack.core.data.repository.TransactionRepository
 import com.sethv.fintrack.core.model.PendingStatus
 import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.service.categorizer.TransactionCategorizer
 import com.sethv.fintrack.service.parser.SmsParser
-import kotlinx.coroutines.flow.first
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 
 class HistoricalSmsProcessor @Inject constructor(
     private val historicalSmsReader: HistoricalSmsReader,
@@ -20,19 +21,35 @@ class HistoricalSmsProcessor @Inject constructor(
     suspend fun scanAndProcess(): Int {
         val allSms = historicalSmsReader.readAllSms()
 
-        val existingTransactions = transactionRepository.getAllTransactions().first()
-        val existingPending = pendingTransactionRepository.getAllPending().first()
-
-        val existingSmsBodies = buildSet {
-            existingTransactions.forEach { add(it.smsBody to it.dateTime) }
-            existingPending.forEach { add(it.smsBody to it.dateTime) }
-        }
+        // Snapshot of already-accepted ledger rows (minute-bucketed keys —
+        // see [SmsFingerprint] for why exact timestamps are not compared).
+        val acceptedBuckets = transactionRepository.getAllTransactions().first()
+            .mapTo(mutableSetOf()) { SmsFingerprint.minuteBucketOf(it.dateTime) to it.smsBody }
 
         var count = 0
         for (sms in allSms) {
-            val parsed = smsParser.parse(sms) ?: continue
+            val parsed = try {
+                smsParser.parse(sms)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Parser threw during scan for sender=${sms.sender}", t)
+                null
+            } ?: continue
 
-            if ((parsed.smsBody to parsed.dateTime) in existingSmsBodies) continue
+            if ((SmsFingerprint.minuteBucketOf(parsed.dateTime) to parsed.smsBody) in acceptedBuckets) {
+                continue
+            }
+
+            // Live re-check right before insert: an SMS processed by the
+            // receiver while this scan was running would otherwise be inserted
+            // twice (the snapshot above cannot see it yet).
+            val bucket = SmsFingerprint.minuteBucketOf(parsed.dateTime)
+            val duplicate = try {
+                pendingTransactionRepository.existsBySmsFingerprint(parsed.smsBody, bucket)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Dedup lookup failed during scan", t)
+                false
+            }
+            if (duplicate) continue
 
             val category = categorizer.categorize(parsed)
             val pending = PendingTransaction(
@@ -45,9 +62,20 @@ class HistoricalSmsProcessor @Inject constructor(
                 smsBody = parsed.smsBody,
                 status = PendingStatus.PENDING,
             )
-            pendingTransactionRepository.insertPending(pending)
-            count++
+            // Isolate failures to the offending row instead of aborting the
+            // whole scan with a misleading "scan failed" state.
+            count += try {
+                pendingTransactionRepository.insertPending(pending)
+                1
+            } catch (t: Throwable) {
+                Log.e(TAG, "insertPending failed during scan for ${parsed.merchant}", t)
+                0
+            }
         }
         return count
+    }
+
+    private companion object {
+        const val TAG = "FinTrack.HistScan"
     }
 }

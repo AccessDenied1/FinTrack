@@ -8,6 +8,7 @@ import com.sethv.fintrack.core.model.PendingTransaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,41 +46,56 @@ class PendingReviewViewModel @Inject constructor(
     private val _events = MutableSharedFlow<PendingReviewEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<PendingReviewEvent> = _events.asSharedFlow()
 
-    fun accept(pending: PendingTransaction) {
+    // Flipped synchronously in the click handler — a rapid double-tap must
+    // never enqueue two actions (the repository guard is defense-in-depth).
+    private val actionInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private fun launchAction(block: suspend () -> Unit) {
+        if (!actionInProgress.compareAndSet(false, true)) return
         viewModelScope.launch {
-            runCatching {
-                transactionRepository.acceptPending(
-                    pending = pending,
-                    amount = pending.amount,
-                    merchant = pending.merchant,
-                    category = pending.category,
-                    notes = pending.notes,
-                )
-            }.onSuccess {
-                _events.emit(PendingReviewEvent.Accepted(1))
-            }.onFailure { t ->
-                _events.emit(PendingReviewEvent.Error(t.message ?: "Failed to accept"))
+            try {
+                block()
+            } finally {
+                actionInProgress.set(false)
             }
         }
     }
 
-    fun reject(pending: PendingTransaction) {
-        viewModelScope.launch {
-            runCatching { pendingRepository.rejectPending(pending.id) }
-                .onSuccess { _events.emit(PendingReviewEvent.Rejected(1)) }
-                .onFailure { _events.emit(PendingReviewEvent.Error(it.message ?: "Failed to skip")) }
+    fun accept(pending: PendingTransaction) = launchAction {
+        runCatching {
+            transactionRepository.acceptPending(
+                pending = pending,
+                amount = pending.amount,
+                merchant = pending.merchant,
+                category = pending.category,
+                notes = pending.notes,
+            )
+        }.onSuccess { resultId ->
+            if (resultId != TransactionRepository.ALREADY_HANDLED) {
+                _events.emit(PendingReviewEvent.Accepted(1))
+            }
+        }.onFailure { t ->
+            _events.emit(PendingReviewEvent.Error(t.message ?: "Failed to accept"))
         }
     }
 
+    fun reject(pending: PendingTransaction) = launchAction {
+        runCatching { pendingRepository.rejectPending(pending.id) }
+            .onSuccess { _events.emit(PendingReviewEvent.Rejected(1)) }
+            .onFailure { _events.emit(PendingReviewEvent.Error(it.message ?: "Failed to skip")) }
+    }
+
     fun acceptAll() {
-        viewModelScope.launch {
-            val pending = uiState.value.items
-            if (pending.isEmpty()) return@launch
+        val items = uiState.value.items
+        if (items.isEmpty()) return
+        launchAction {
             runCatching {
                 // Single atomic insert + status update instead of N round-trips.
-                transactionRepository.acceptAllPending(pending)
-            }.onSuccess {
-                _events.emit(PendingReviewEvent.Accepted(pending.size))
+                transactionRepository.acceptAllPending(items)
+            }.onSuccess { insertedIds ->
+                if (insertedIds.isNotEmpty()) {
+                    _events.emit(PendingReviewEvent.Accepted(insertedIds.size))
+                }
             }.onFailure {
                 _events.emit(PendingReviewEvent.Error(it.message ?: "Failed to accept all"))
             }
@@ -87,9 +103,9 @@ class PendingReviewViewModel @Inject constructor(
     }
 
     fun rejectAll() {
-        viewModelScope.launch {
-            val ids = uiState.value.items.map { it.id }
-            if (ids.isEmpty()) return@launch
+        val ids = uiState.value.items.map { it.id }
+        if (ids.isEmpty()) return
+        launchAction {
             runCatching { pendingRepository.rejectAllPending(ids) }
                 .onSuccess { _events.emit(PendingReviewEvent.Rejected(ids.size)) }
                 .onFailure { _events.emit(PendingReviewEvent.Error(it.message ?: "Failed to skip all")) }

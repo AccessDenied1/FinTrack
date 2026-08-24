@@ -1,5 +1,10 @@
 package com.sethv.fintrack.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -33,10 +38,21 @@ fun FinTrackNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    // Subtle directional motion: forward slides in from the right, back from
+    // the left, with a quick fade. Fast enough to never feel like a delay.
+    val enter = slideInHorizontally(tween(260)) { it / 6 } + fadeIn(tween(260))
+    val exit = fadeOut(tween(160))
+    val popEnter = slideInHorizontally(tween(260)) { -it / 6 } + fadeIn(tween(260))
+    val popExit = slideOutHorizontally(tween(220)) { it / 6 } + fadeOut(tween(220))
+
     NavHost(
         navController = navController,
         startDestination = Route.Home.route,
         modifier = modifier,
+        enterTransition = { enter },
+        exitTransition = { exit },
+        popEnterTransition = { popEnter },
+        popExitTransition = { popExit },
     ) {
         composable(Route.Home.route) {
             HomeScreen(

@@ -93,21 +93,14 @@ fun FinTrackTheme(
     // wins over Material You. Flip the flag if you want to A/B test.
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-    val finTrackColors = if (darkTheme) {
-        FinTrackColors(
-            credit = CreditGreen,
-            onCredit = Color.White,
-            debit = DebitRed,
-            onDebit = Color.White,
-        )
-    } else {
-        FinTrackColors(
-            credit = CreditGreen,
-            onCredit = Color.White,
-            debit = DebitRed,
-            onDebit = Color.White,
-        )
-    }
+    // Same values in both themes today; split here when dark-specific
+    // credit/debit tints are needed.
+    val finTrackColors = FinTrackColors(
+        credit = CreditGreen,
+        onCredit = Color.White,
+        debit = DebitRed,
+        onDebit = Color.White,
+    )
 
     CompositionLocalProvider(LocalFinTrackColors provides finTrackColors) {
         MaterialTheme(

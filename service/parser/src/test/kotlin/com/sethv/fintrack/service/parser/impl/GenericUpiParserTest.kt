@@ -49,6 +49,28 @@ class GenericUpiParserTest {
     }
 
     @Test
+    fun `canParse returns false for wallet paid SMS without UPI mention`() {
+        // Wallet/fintech SMS without an explicit UPI reference belong to the
+        // fallback parser so they get a sender-derived bank label, not "UPI".
+        val sms = RawSms(
+            sender = "VM-PAYTMB",
+            body = "Paid Rs.500 to AMAZON PAY balance top-up",
+            timestamp = System.currentTimeMillis(),
+        )
+        assertTrue(!parser.canParse(sms))
+    }
+
+    @Test
+    fun `canParse rejects OTP authorization request with amount`() {
+        val sms = RawSms(
+            sender = "AD-UPIBNK",
+            body = "Use OTP 4821 to approve txn of Rs.9,999",
+            timestamp = System.currentTimeMillis(),
+        )
+        assertTrue(!parser.canParse(sms))
+    }
+
+    @Test
     fun `parse extracts UPI debit transaction`() {
         val sms = RawSms(
             sender = "AD-PAYTMB",

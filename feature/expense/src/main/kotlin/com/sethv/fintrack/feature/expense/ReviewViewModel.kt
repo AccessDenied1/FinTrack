@@ -38,6 +38,10 @@ class ReviewViewModel @Inject constructor(
 
     private val pendingId: Long = savedStateHandle.get<Long>(ARG_PENDING_ID) ?: 0L
 
+    // Flipped synchronously in the click handler so a rapid double-tap can
+    // never enqueue two repository calls (coroutine-internal flags race).
+    private val actionInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
 
@@ -98,38 +102,62 @@ class ReviewViewModel @Inject constructor(
 
     fun acceptTransaction() {
         val pending = _uiState.value.pendingTransaction ?: return
+        if (!actionInFlight.compareAndSet(false, true)) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, error = null) }
             try {
-                transactionRepository.acceptPending(
-                    pending = pending,
-                    amount = _uiState.value.amount,
-                    merchant = _uiState.value.merchant,
-                    category = _uiState.value.category,
-                    notes = _uiState.value.notes,
-                )
-                _uiState.update { it.copy(isSaving = false) }
-                _accepted.emit(Unit)
-            } catch (e: Exception) {
+                acceptInternal(pending)
+            } finally {
+                actionInFlight.set(false)
+            }
+        }
+    }
+
+    private suspend fun acceptInternal(pending: PendingTransaction) {
+        _uiState.update { it.copy(isSaving = true, error = null) }
+        try {
+            val resultId = transactionRepository.acceptPending(
+                pending = pending,
+                amount = _uiState.value.amount,
+                merchant = _uiState.value.merchant,
+                category = _uiState.value.category,
+                notes = _uiState.value.notes,
+            )
+            if (resultId == TransactionRepository.ALREADY_HANDLED) {
                 _uiState.update {
-                    it.copy(isSaving = false, error = e.message ?: "Failed to accept transaction")
+                    it.copy(isSaving = false, error = "This transaction was already reviewed.")
                 }
+                return
+            }
+            _uiState.update { it.copy(isSaving = false) }
+            _accepted.emit(Unit)
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(isSaving = false, error = e.message ?: "Failed to accept transaction")
             }
         }
     }
 
     fun rejectTransaction() {
         val pending = _uiState.value.pendingTransaction ?: return
+        if (!actionInFlight.compareAndSet(false, true)) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, error = null) }
             try {
-                pendingTransactionRepository.rejectPending(pending.id)
-                _uiState.update { it.copy(isSaving = false) }
-                _rejected.emit(Unit)
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isSaving = false, error = e.message ?: "Failed to reject transaction")
-                }
+                rejectInternal(pending)
+            } finally {
+                actionInFlight.set(false)
+            }
+        }
+    }
+
+    private suspend fun rejectInternal(pending: PendingTransaction) {
+        _uiState.update { it.copy(isSaving = true, error = null) }
+        try {
+            pendingTransactionRepository.rejectPending(pending.id)
+            _uiState.update { it.copy(isSaving = false) }
+            _rejected.emit(Unit)
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(isSaving = false, error = e.message ?: "Failed to reject transaction")
             }
         }
     }

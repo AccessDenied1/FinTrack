@@ -36,4 +36,10 @@ interface PendingTransactionDao {
 
     @Query("DELETE FROM pending_transactions WHERE id IN (:ids)")
     suspend fun deletePendingBulk(ids: List<Long>)
+
+    @Query(
+        "SELECT COUNT(*) FROM pending_transactions " +
+            "WHERE smsBody = :smsBody AND dateTime / 60000 = :minuteBucket",
+    )
+    suspend fun countBySmsFingerprint(smsBody: String, minuteBucket: Long): Int
 }

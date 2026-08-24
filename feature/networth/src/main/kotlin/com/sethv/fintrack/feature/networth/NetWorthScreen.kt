@@ -38,9 +38,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.text.DecimalFormat
-
-private val amountFormat = DecimalFormat("#,##0.00")
+import com.sethv.fintrack.core.ui.component.AnimatedCurrency
+import com.sethv.fintrack.core.ui.util.Format
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,8 +147,8 @@ private fun CurrentBalanceCard(balance: Double) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = formatAmount(balance),
+            AnimatedCurrency(
+                amount = balance,
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -175,7 +174,7 @@ private fun InitialBalanceCard(balance: Double, onEditClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = formatAmount(balance),
+                    text = Format.currency(balance),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -217,7 +216,7 @@ private fun SummaryCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = formatAmount(amount),
+                text = Format.currency(amount),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = contentColor,
@@ -276,10 +275,4 @@ private fun SetBalanceDialog(
             }
         },
     )
-}
-
-private fun formatAmount(amount: Double): String {
-    val formatted = amountFormat.format(kotlin.math.abs(amount))
-    val prefix = if (amount < 0) "-₹" else "₹"
-    return "$prefix$formatted"
 }

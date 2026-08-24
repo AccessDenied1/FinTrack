@@ -10,9 +10,10 @@ class SbiBankParser @Inject constructor() : SmsParser {
 
     override fun canParse(sms: RawSms): Boolean {
         if (!ParserUtils.senderContainsAny(sms.sender, "SBI", "SBIINB", "SBIPSG")) return false
-        val body = sms.body
-        return body.contains("debited", ignoreCase = true) ||
-            body.contains("credited", ignoreCase = true)
+        // Broad gate (like HDFC/Axis) so "Paid/Sent Rs.X to Y" UPI SMS from SBI
+        // senders keep their SBI attribution instead of falling through to the
+        // generic UPI parser.
+        return ParserUtils.looksLikeTransactionSms(sms.body)
     }
 
     override fun parse(sms: RawSms): ParsedTransaction? {

@@ -5,6 +5,11 @@ plugins {
 
 android {
     namespace = "com.sethv.fintrack.service.sms"
+
+    // android.util.Log statics are no-ops in local unit tests.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -16,4 +21,8 @@ dependencies {
     implementation(project(":service:notification"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

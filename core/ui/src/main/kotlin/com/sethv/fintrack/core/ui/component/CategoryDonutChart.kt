@@ -1,5 +1,8 @@
 package com.sethv.fintrack.core.ui.component
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -41,6 +46,17 @@ fun CategoryDonutChart(
     strokeWidthDp: Int = 28,
 ) {
     val total = slices.sumOf { it.value.toDouble() }.toFloat().coerceAtLeast(0.0001f)
+
+    // Draw-in: slices sweep from 0→360° when data arrives or changes.
+    val sweepProgress = remember { Animatable(0f) }
+    LaunchedEffect(slices) {
+        sweepProgress.snapTo(0f)
+        sweepProgress.animateTo(
+            1f,
+            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+        )
+    }
+
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(160.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(160.dp)) {
@@ -60,11 +76,13 @@ fun CategoryDonutChart(
                     )
                 } else {
                     slices.forEach { slice ->
-                        val sweep = (slice.value / total) * 360f
+                        val sweep = (slice.value / total) * 360f * sweepProgress.value
                         drawArc(
                             color = colorForCategoryIndex(slice.colorIndex),
                             startAngle = startAngle,
-                            sweepAngle = sweep - 1f, // small gap
+                            // Small gap between slices, but never a negative or
+                            // zero sweep for tiny slices (< ~1% would go negative).
+                            sweepAngle = (sweep - 1f).coerceAtLeast(0.5f),
                             useCenter = false,
                             topLeft = topLeft,
                             size = arcSize,

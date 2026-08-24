@@ -76,4 +76,17 @@ class SbiBankParserTest {
         )
         assertNull(parser.parse(sms))
     }
+
+    @Test
+    fun `canParse accepts paid-phrasing UPI SMS so SBI keeps attribution`() {
+        val sms = RawSms(
+            sender = "AD-SBIINB",
+            body = "Paid Rs.500 to AMAZON on 15-03-24. UPI Ref: 123456789012",
+            timestamp = System.currentTimeMillis(),
+        )
+        assertTrue(parser.canParse(sms))
+        val result = parser.parse(sms)
+        assertEquals("SBI", result!!.bank)
+        assertEquals(500.0, result.amount, 0.01)
+    }
 }

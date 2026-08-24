@@ -1,9 +1,16 @@
 package com.sethv.fintrack.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "pending_transactions")
+@Entity(
+    tableName = "pending_transactions",
+    indices = [
+        Index(value = ["status"]),
+        Index(value = ["dateTime"]),
+    ],
+)
 data class PendingTransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -18,3 +25,4 @@ data class PendingTransactionEntity(
     val createdAt: Long,
     val status: String,
 )
+

@@ -8,7 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -27,7 +27,10 @@ fun AmountDisplay(
     modifier: Modifier = Modifier,
 ) {
     if (editMode) {
-        var text by remember(amount) {
+        // Seed ONCE from the parsed amount. Keying remember on `amount` reset the
+        // text on every VM echo-back, corrupting mid-typing input ("12." became
+        // "12.0" and moved the cursor).
+        var text by rememberSaveable {
             mutableStateOf(if (amount == 0.0) "" else amount.toString())
         }
 

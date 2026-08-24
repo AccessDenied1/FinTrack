@@ -1,9 +1,15 @@
 package com.sethv.fintrack.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [
+        Index(value = ["dateTime"]),
+    ],
+)
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

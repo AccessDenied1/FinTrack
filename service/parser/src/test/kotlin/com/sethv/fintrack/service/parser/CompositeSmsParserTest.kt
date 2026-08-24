@@ -97,4 +97,62 @@ class CompositeSmsParserTest {
 
         assertEquals("First", result!!.merchant)
     }
+
+    // ---------------------------------------------------------------------
+    // Integration: the real parser chain must keep bank attribution for
+    // "Paid/Sent" phrasing instead of letting the generic UPI parser claim it.
+    // ---------------------------------------------------------------------
+    private val productionChain = CompositeSmsParser(
+        linkedSetOf(
+            com.sethv.fintrack.service.parser.impl.HdfcBankParser(),
+            com.sethv.fintrack.service.parser.impl.SbiBankParser(),
+            com.sethv.fintrack.service.parser.impl.IciciBankParser(),
+            com.sethv.fintrack.service.parser.impl.AxisBankParser(),
+            com.sethv.fintrack.service.parser.impl.GenericUpiParser(),
+            com.sethv.fintrack.service.parser.impl.GenericTransactionParser(),
+        ),
+    )
+
+    @Test
+    fun `production chain attributes SBI paid SMS to SBI not UPI`() {
+        val sms = RawSms(
+            sender = "AD-SBIINB",
+            body = "Paid Rs.500 to AMAZON on 15-03-24. UPI Ref: 123456789012",
+            timestamp = 1718880000000L,
+        )
+        val result = productionChain.parse(sms)
+        assertEquals("SBI", result!!.bank)
+    }
+
+    @Test
+    fun `production chain attributes ICICI paid SMS to ICICI not UPI`() {
+        val sms = RawSms(
+            sender = "AD-ICICIB",
+            body = "Sent Rs.750 to SWIGGY via UPI. Ref 987654321098",
+            timestamp = 1718880000000L,
+        )
+        val result = productionChain.parse(sms)
+        assertEquals("ICICI", result!!.bank)
+    }
+
+    @Test
+    fun `production chain falls back to sender label for wallet SMS without UPI`() {
+        val sms = RawSms(
+            sender = "VM-PAYTMB",
+            body = "Rs.499 debited for wallet top-up order #12345",
+            timestamp = 1718880000000L,
+        )
+        val result = productionChain.parse(sms)
+        assertEquals("VM-PAYTMB", result!!.bank)
+    }
+
+    @Test
+    fun `production chain rejects OTP authorization request with amount`() {
+        val sms = RawSms(
+            sender = "AD-HDFCBK",
+            body = "Use OTP 4821 to approve txn of Rs.9,999",
+            timestamp = 1718880000000L,
+        )
+        assertNull(productionChain.parse(sms))
+    }
 }

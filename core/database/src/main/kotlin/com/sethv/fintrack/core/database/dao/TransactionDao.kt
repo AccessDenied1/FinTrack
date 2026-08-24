@@ -27,4 +27,10 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE dateTime BETWEEN :startTime AND :endTime ORDER BY dateTime DESC")
     fun getByDateRange(startTime: Long, endTime: Long): Flow<List<TransactionEntity>>
+
+    @Query(
+        "SELECT COUNT(*) FROM transactions " +
+            "WHERE smsBody = :smsBody AND dateTime / 60000 = :minuteBucket",
+    )
+    suspend fun countBySmsFingerprint(smsBody: String, minuteBucket: Long): Int
 }

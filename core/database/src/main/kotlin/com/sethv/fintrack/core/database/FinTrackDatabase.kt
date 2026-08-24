@@ -17,7 +17,7 @@ import com.sethv.fintrack.core.database.entity.TransactionEntity
         PendingTransactionEntity::class,
         BalanceSettingsEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

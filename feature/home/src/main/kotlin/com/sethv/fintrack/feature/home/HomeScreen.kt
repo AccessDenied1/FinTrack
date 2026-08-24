@@ -5,7 +5,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,16 +20,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -33,24 +43,34 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sethv.fintrack.core.ui.component.AnimatedCurrency
 import com.sethv.fintrack.core.ui.component.CategoryDonutChart
 import com.sethv.fintrack.core.ui.component.DonutSlice
 import com.sethv.fintrack.core.ui.component.EmptyState
 import com.sethv.fintrack.core.ui.component.PermissionCard
 import com.sethv.fintrack.core.ui.component.SectionHeader
+import com.sethv.fintrack.core.ui.component.SparkLine
 import com.sethv.fintrack.core.ui.component.TransactionItem
 import com.sethv.fintrack.core.ui.theme.FinTrackSpacing
 import com.sethv.fintrack.core.ui.theme.LocalFinTrackColors
 import com.sethv.fintrack.core.ui.util.Format
+import kotlinx.coroutines.delay
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,6 +154,9 @@ fun HomeScreen(
             onResetScanState = scanSmsViewModel::resetScanState,
             onNavigateToExpenseList = onNavigateToExpenseList,
             onNavigateToReviewTab = onNavigateToReviewTab,
+            onPreviousMonth = viewModel::onPreviousMonth,
+            onNextMonth = viewModel::onNextMonth,
+            onCurrentMonthSelected = viewModel::onCurrentMonthSelected,
         )
     }
 }
@@ -149,6 +172,9 @@ private fun HomeContent(
     onResetScanState: () -> Unit,
     onNavigateToExpenseList: () -> Unit,
     onNavigateToReviewTab: () -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onCurrentMonthSelected: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier
@@ -188,7 +214,18 @@ private fun HomeContent(
             }
         }
 
-        item { MonthlySummaryCard(uiState = uiState) }
+        item { MonthlySummaryCard(
+            uiState = uiState,
+            onPreviousMonth = onPreviousMonth,
+            onNextMonth = onNextMonth,
+            onCurrentMonthSelected = onCurrentMonthSelected,
+        ) }
+
+        if (uiState.dailySpendingTrend.any { it > 0.0 }) {
+            item {
+                WeeklyTrendCard(trend = uiState.dailySpendingTrend)
+            }
+        }
 
         if (uiState.categoryBreakdown.isNotEmpty()) {
             item {
@@ -220,9 +257,14 @@ private fun HomeContent(
                 )
             }
         } else {
-            items(items = uiState.recentTransactions, key = { it.id }) { transaction ->
+            itemsIndexed(
+                items = uiState.recentTransactions,
+                key = { _, txn -> txn.id },
+            ) { index, transaction ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .staggeredEntrance(index),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface,
                     ),
@@ -321,44 +363,100 @@ private fun ScanPastSmsCard(
 }
 
 @Composable
-private fun MonthlySummaryCard(uiState: HomeUiState) {
+private fun WeeklyTrendCard(trend: List<Double>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Daily spending",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = "Last 7 days • ${Format.currency(trend.sum())}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
+            SparkLine(
+                values = trend,
+                lineColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthlySummaryCard(
+    uiState: HomeUiState,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onCurrentMonthSelected: () -> Unit,
+) {
     val delta = uiState.monthlyTotal - uiState.previousMonthTotal
+
+    // Comparison wording: current month is like-for-like (same day-span);
+    // past months compare against the full previous calendar month.
+    val comparisonSuffix = if (uiState.isCurrentMonth) " vs same period last month" else " vs last month"
     val deltaLabel = when {
         uiState.previousMonthTotal == 0.0 && uiState.monthlyTotal == 0.0 -> "—"
         uiState.previousMonthTotal == 0.0 -> "—"
-        delta > 0 -> "+${Format.currency(delta)} vs last month"
-        delta < 0 -> "-${Format.currency(-delta)} vs last month"
+        delta > 0 -> "+${Format.currency(delta)}$comparisonSuffix"
+        delta < 0 -> "-${Format.currency(-delta)}$comparisonSuffix"
         else -> "Same as last month"
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+    val gradient = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.secondaryContainer,
         ),
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind { drawRect(gradient) },
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
+            MonthNavigator(
+                selectedMonth = uiState.selectedMonth,
+                isCurrentMonth = uiState.isCurrentMonth,
+                onPreviousMonth = onPreviousMonth,
+                onNextMonth = onNextMonth,
+                onCurrentMonthSelected = onCurrentMonthSelected,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
-                text = "Total Spending This Month",
+                text = if (uiState.isCurrentMonth) "Spending this month" else "Spending",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = Format.currency(uiState.monthlyTotal),
+            AnimatedCurrency(
+                amount = uiState.monthlyTotal,
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             val deltaColor = when {
                 delta > 0 -> LocalFinTrackColors.current.debit
                 delta < 0 -> LocalFinTrackColors.current.credit
                 else -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
             }
-            
+
             androidx.compose.material3.Surface(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
@@ -371,13 +469,127 @@ private fun MonthlySummaryCard(uiState: HomeUiState) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            QuickStatsRow(uiState = uiState)
         }
     }
 }
 
 @Composable
+private fun MonthNavigator(
+    selectedMonth: java.time.YearMonth?,
+    isCurrentMonth: Boolean,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onCurrentMonthSelected: () -> Unit,
+) {
+    val displayed = selectedMonth ?: java.time.YearMonth.now()
+    val formatter = remember { DateTimeFormatter.ofPattern("MMMM yyyy") }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onPreviousMonth) {
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowLeft,
+                contentDescription = "Previous month",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm),
+            modifier = Modifier.clickable(onClick = onCurrentMonthSelected),
+        ) {
+            Text(
+                text = displayed.format(formatter).uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            if (isCurrentMonth) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
+                )
+            }
+        }
+        IconButton(onClick = onNextMonth, enabled = !isCurrentMonth) {
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowRight,
+                contentDescription = "Next month",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isCurrentMonth) 0.3f else 1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickStatsRow(uiState: HomeUiState) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        QuickStat(label = "Per day", value = Format.currency(uiState.avgPerDay))
+        StatDivider()
+        QuickStat(label = "Biggest", value = Format.currency(uiState.biggestExpense))
+        StatDivider()
+        QuickStat(label = "Txns", value = uiState.monthTxnCount.toString())
+    }
+}
+
+@Composable
+private fun QuickStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+        )
+    }
+}
+
+@Composable
+private fun StatDivider() {
+    Box(
+        modifier = Modifier
+            .height(28.dp)
+            .width(1.dp)
+            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)),
+    )
+}
+
+/**
+ * Fade + rise entrance, delayed by [index] * 45ms — gives the recent list a
+ * cascading reveal. Runs once per composition of each item.
+ */
+@Composable
+private fun Modifier.staggeredEntrance(index: Int): Modifier {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(index * 45L)
+        progress.animateTo(1f, animationSpec = tween(durationMillis = 320))
+    }
+    return graphicsLayer {
+        alpha = progress.value
+        translationY = (1f - progress.value) * 40f
+    }
+}
+
+@Composable
 private fun CategoryBreakdownCard(breakdown: List<CategorySpending>) {
-    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
             val slices = breakdown.mapIndexed { idx, s ->
                 DonutSlice(
@@ -393,4 +605,3 @@ private fun CategoryBreakdownCard(breakdown: List<CategorySpending>) {
             )
         }
     }
-}

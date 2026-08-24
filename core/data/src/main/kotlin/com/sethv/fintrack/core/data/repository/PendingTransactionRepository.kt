@@ -28,4 +28,10 @@ interface PendingTransactionRepository {
     suspend fun rejectAllPending(ids: List<Long>)
 
     suspend fun deletePending(id: Long)
+
+    /**
+     * Duplicate guard for the ingest paths. Timestamps are compared as minute
+     * buckets because SMSC and handset receive clocks skew.
+     */
+    suspend fun existsBySmsFingerprint(smsBody: String, minuteBucket: Long): Boolean
 }

@@ -76,4 +76,17 @@ class IciciBankParserTest {
         )
         assertNull(parser.parse(sms))
     }
+
+    @Test
+    fun `canParse accepts paid-phrasing UPI SMS so ICICI keeps attribution`() {
+        val sms = RawSms(
+            sender = "AD-ICICIB",
+            body = "Paid Rs.750 to SWIGGY on 15-03-24. UPI Ref: 987654321098",
+            timestamp = System.currentTimeMillis(),
+        )
+        assertTrue(parser.canParse(sms))
+        val result = parser.parse(sms)
+        assertEquals("ICICI", result!!.bank)
+        assertEquals(750.0, result.amount, 0.01)
+    }
 }

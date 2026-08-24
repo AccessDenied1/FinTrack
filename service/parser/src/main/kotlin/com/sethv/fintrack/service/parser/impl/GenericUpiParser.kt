@@ -10,10 +10,12 @@ class GenericUpiParser @Inject constructor() : SmsParser {
 
     override fun canParse(sms: RawSms): Boolean {
         val body = sms.body
+        // Require an explicit UPI mention: wallet/fintech SMS ("Paid Rs.500",
+        // PAYTM/AmazonPay senders) without one are better served by the
+        // last-resort parser, which labels them with the actual sender instead
+        // of a blanket "UPI" bank tag.
         return ParserUtils.looksLikeTransactionSms(body) &&
-            (body.contains("UPI", ignoreCase = true) ||
-                body.contains("paid", ignoreCase = true) ||
-                body.contains("debited", ignoreCase = true))
+            body.contains("UPI", ignoreCase = true)
     }
 
     override fun parse(sms: RawSms): ParsedTransaction? {

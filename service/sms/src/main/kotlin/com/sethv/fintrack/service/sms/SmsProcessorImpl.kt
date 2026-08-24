@@ -4,6 +4,7 @@ import android.util.Log
 import com.sethv.fintrack.core.common.di.Dispatcher
 import com.sethv.fintrack.core.common.di.FinTrackDispatchers
 import com.sethv.fintrack.core.data.repository.PendingTransactionRepository
+import com.sethv.fintrack.core.data.repository.TransactionRepository
 import com.sethv.fintrack.core.model.PendingStatus
 import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.core.model.RawSms
@@ -12,13 +13,13 @@ import com.sethv.fintrack.service.notification.TransactionNotifier
 import com.sethv.fintrack.service.parser.SmsParser
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class SmsProcessorImpl @Inject constructor(
     private val smsParser: SmsParser,
     private val categorizer: TransactionCategorizer,
     private val pendingTransactionRepository: PendingTransactionRepository,
+    private val transactionRepository: TransactionRepository,
     private val transactionNotifier: TransactionNotifier,
     @Dispatcher(FinTrackDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : SmsProcessor {
@@ -76,17 +77,16 @@ class SmsProcessorImpl @Inject constructor(
     private suspend fun isDuplicate(
         parsed: com.sethv.fintrack.core.model.ParsedTransaction,
     ): Boolean {
-        val key = parsed.smsBody to parsed.dateTime
-        val inTransactions = pendingTransactionRepository
-            .getAllPending()
-            .first()
-            .any { it.smsBody == parsed.smsBody && it.dateTime == parsed.dateTime }
-        if (inTransactions) return true
-        // For dedup against accepted transactions we'd need TransactionRepository — keeping
-        // it light here: the historical scan path covers the full set, and the pending
-        // check covers the common "double-broadcast within seconds" case.
-        @Suppress("UNUSED_VARIABLE") val ignored = key
-        return false
+        // Minute-bucketed key: the live broadcast carries the SMSC timestamp
+        // while a historical rescan reads the handset receive time — the two
+        // routinely skew by seconds, so exact-timestamp equality missed dups.
+        val bucket = SmsFingerprint.minuteBucketOf(parsed.dateTime)
+        if (pendingTransactionRepository.existsBySmsFingerprint(parsed.smsBody, bucket)) {
+            return true
+        }
+        // Also guard against re-ingesting SMS that were already accepted into
+        // the ledger (e.g. duplicate broadcast after "Accept All").
+        return transactionRepository.existsBySmsFingerprint(parsed.smsBody, bucket)
     }
 
     private companion object {

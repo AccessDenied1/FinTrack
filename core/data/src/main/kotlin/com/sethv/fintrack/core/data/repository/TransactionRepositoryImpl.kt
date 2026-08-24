@@ -6,6 +6,7 @@ import com.sethv.fintrack.core.data.mapper.toEntity
 import com.sethv.fintrack.core.database.FinTrackDatabase
 import com.sethv.fintrack.core.database.dao.TransactionDao
 import com.sethv.fintrack.core.model.ExpenseCategory
+import com.sethv.fintrack.core.model.PendingStatus
 import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.core.model.Transaction
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,12 @@ class TransactionRepositoryImpl @Inject constructor(
             notes = notes,
         )
         return database.withTransaction {
+            // Re-validate INSIDE the DB transaction: the row may have been
+            // accepted/rejected by another path since the caller loaded it.
+            val current = database.pendingTransactionDao().getById(pending.id)
+            if (current == null || current.status != PendingStatus.PENDING.name) {
+                return@withTransaction TransactionRepository.ALREADY_HANDLED
+            }
             val newId = transactionDao.insert(transaction.toEntity())
             pendingTransactionRepository.acceptPending(pending.id)
             newId
@@ -43,19 +50,28 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override suspend fun acceptAllPending(pending: List<PendingTransaction>): List<Long> {
         if (pending.isEmpty()) return emptyList()
-        val transactions = pending.map { p ->
-            // Review tab "Accept All" uses the parsed values as-is — same field
-            // mapping as a single-row accept where the user didn't edit anything.
-            p.toTransaction(
-                amount = p.amount,
-                merchant = p.merchant,
-                category = p.category,
-                notes = p.notes,
-            )
-        }
         return database.withTransaction {
+            // Only rows still PENDING at commit time are promoted — anything
+            // handled meanwhile is skipped instead of double-inserted.
+            val fresh = pending.mapNotNull { p ->
+                database.pendingTransactionDao().getById(p.id)
+                    ?.takeIf { it.status == PendingStatus.PENDING.name }
+                    ?.toDomain()
+            }
+            if (fresh.isEmpty()) return@withTransaction emptyList()
+
+            val transactions = fresh.map { p ->
+                // Review tab "Accept All" uses the parsed values as-is — same field
+                // mapping as a single-row accept where the user didn't edit anything.
+                p.toTransaction(
+                    amount = p.amount,
+                    merchant = p.merchant,
+                    category = p.category,
+                    notes = p.notes,
+                )
+            }
             val newIds = transactionDao.insertAll(transactions.map { it.toEntity() })
-            pendingTransactionRepository.acceptAllPending(pending.map { it.id })
+            pendingTransactionRepository.acceptAllPending(fresh.map { it.id })
             newIds
         }
     }
@@ -74,6 +90,9 @@ class TransactionRepositoryImpl @Inject constructor(
         transactionDao.getByDateRange(startTime, endTime).map { entities ->
             entities.map { it.toDomain() }
         }
+
+    override suspend fun existsBySmsFingerprint(smsBody: String, minuteBucket: Long): Boolean =
+        transactionDao.countBySmsFingerprint(smsBody, minuteBucket) > 0
 }
 
 private fun PendingTransaction.toTransaction(

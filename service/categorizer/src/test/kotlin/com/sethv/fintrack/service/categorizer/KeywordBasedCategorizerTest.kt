@@ -113,4 +113,60 @@ class KeywordBasedCategorizerTest {
         )
         assertEquals(ExpenseCategory.FOOD, categorizer.categorize(transaction))
     }
+
+    // ---------------------------------------------------------------------
+    // Regression guards: substring matching used to mis-categorize boilerplate
+    // ("for more details" -> GROCERIES, "current balance" -> RENT,
+    //  "business" -> TRANSPORT).
+    // ---------------------------------------------------------------------
+    @Test
+    fun `boilerplate more-details does not become groceries`() {
+        assertEquals(
+            ExpenseCategory.SHOPPING,
+            categorizer.categorize(createTransaction("AMAZON", smsBody = "For more details visit amazon.in")),
+        )
+        assertEquals(
+            ExpenseCategory.OTHERS,
+            categorizer.categorize(createTransaction("RANDOM STORE XYZ", smsBody = "For more details log in to netbanking")),
+        )
+    }
+
+    @Test
+    fun `more brand still categorized when it is the merchant`() {
+        assertEquals(ExpenseCategory.GROCERIES, categorizer.categorize(createTransaction("MORE Supermarket")))
+    }
+
+    @Test
+    fun `current-balance wording does not become rent`() {
+        assertEquals(
+            ExpenseCategory.OTHERS,
+            categorizer.categorize(createTransaction("UNKNOWN SHOP", smsBody = "Your current balance is Rs.5,000")),
+        )
+    }
+
+    @Test
+    fun `business wording does not become transport`() {
+        assertEquals(
+            ExpenseCategory.OTHERS,
+            categorizer.categorize(createTransaction("UNKNOWN PAYEE", smsBody = "Payment for business services")),
+        )
+    }
+
+    @Test
+    fun `refuelled does not trigger fuel via substring`() {
+        // \bfuel\b must not match inside "refuelled"; but real fuel keywords do.
+        assertEquals(ExpenseCategory.FUEL, categorizer.categorize(createTransaction("HP FUELS", smsBody = "")))
+        assertEquals(
+            ExpenseCategory.OTHERS,
+            categorizer.categorize(createTransaction("RANDOM MERCHANT", smsBody = "payment refuelled account")),
+        )
+    }
+
+    @Test
+    fun `real rent transaction still detected via body`() {
+        assertEquals(
+            ExpenseCategory.RENT,
+            categorizer.categorize(createTransaction("ABCXYZ123", smsBody = "Rs.15,000 paid to landlord for house rent")),
+        )
+    }
 }

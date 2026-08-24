@@ -8,6 +8,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.sethv.fintrack.core.model.Transaction
+import com.sethv.fintrack.core.model.TransactionType
+import com.sethv.fintrack.core.ui.theme.LocalFinTrackColors
 import com.sethv.fintrack.core.ui.util.Format
 import java.time.Instant
 import java.time.ZoneId
@@ -64,14 +66,23 @@ fun TransactionItem(
             )
         },
         trailingContent = {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = Format.currency(transaction.amount),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+            // Signed + color-coded so money direction is readable at a glance.
+            val isCredit = transaction.type == TransactionType.CREDIT
+            val finColors = LocalFinTrackColors.current
+            Text(
+                text = if (isCredit) {
+                    "+${Format.currency(transaction.amount)}"
+                } else {
+                    "-${Format.currency(transaction.amount)}"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (isCredit) {
+                    finColors.credit
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
         },
     )
 }

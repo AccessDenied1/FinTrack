@@ -7,6 +7,7 @@ import com.sethv.fintrack.core.database.dao.BalanceSettingsDao
 import com.sethv.fintrack.core.database.dao.PendingTransactionDao
 import com.sethv.fintrack.core.database.dao.TransactionDao
 import com.sethv.fintrack.core.database.migration.MIGRATION_1_2
+import com.sethv.fintrack.core.database.migration.MIGRATION_2_3
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,7 +28,7 @@ object DatabaseModule {
         FinTrackDatabase::class.java,
         "fintrack.db",
     )
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
         .build()
 
     @Provides
