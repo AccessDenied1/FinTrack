@@ -154,4 +154,68 @@ internal object ParserUtils {
 
     private fun amountValue(match: MatchResult): Double? =
         match.groupValues[1].replace(",", "").toDoubleOrNull()
+
+    // ------------------------------------------------------------------
+    // Credit-card specific helpers
+    // ------------------------------------------------------------------
+
+    /** Card references: XX1234, ****1234, CC-1234, "card ending 1234". */
+    private val CARD_LAST4_PATTERN = Regex(
+        """(?:card|cc)\s*(?:no\.?\s*)?(?:ending(?:\s+in)?\s*)?[\*xX\-]{2,6}\s*(\d{4})""" +
+            """|(?:card|cc)\s+ending\s+(?:in\s+)?(\d{4})""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun extractCardLast4(text: String): String? {
+        val match = CARD_LAST4_PATTERN.find(text) ?: return null
+        return match.groupValues[1].takeIf { it.length == 4 }
+            ?: match.groupValues[2].takeIf { it.length == 4 }
+    }
+
+    private val MONTH_BY_NAME: Map<String, Int> = mapOf(
+        "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
+        "jul" to 7, "aug" to 8, "sep" to 9, "oct" to 10, "nov" to 11, "dec" to 12,
+    )
+
+    private val CALENDAR_DATE_PATTERN = Regex(
+        """(\d{1,2})\s*[-/\.\s]\s*([A-Za-z]{3,9}|\d{1,2})(?:\s*[-/\.\s]\s*(\d{2,4}))?""",
+    )
+
+    /**
+     * Parses a date appearing near the phrase "due date" (or "payment due").
+     * Supported shapes: "15-Aug-26", "15 Aug 2026", "15/08/2026", "05-Aug", "15.08.26".
+     * Year-less dates are resolved to the occurrence nearest [smsTimeMillis],
+     * since statements arrive days-to-weeks before the due date.
+     */
+    fun extractDueDate(text: String, smsTimeMillis: Long): Long? {
+        val lower = text.lowercase()
+        val dueDateIdx = lower.indexOf("due date")
+        val dueIdx = if (dueDateIdx >= 0) dueDateIdx else lower.indexOf("payment due")
+        if (dueIdx < 0) return null
+        val window = text.substring(dueIdx, minOf(dueIdx + 80, text.length))
+        val match = CALENDAR_DATE_PATTERN.find(window) ?: return null
+
+        val day = match.groupValues[1].toIntOrNull()?.takeIf { it in 1..31 } ?: return null
+        val monthToken = match.groupValues[2]
+        val month = monthToken.toIntOrNull()?.takeIf { it in 1..12 }
+            ?: MONTH_BY_NAME[monthToken.take(3).lowercase()]
+            ?: return null
+        val rawYear = match.groupValues[3].toIntOrNull()
+
+        val zone = java.time.ZoneId.systemDefault()
+        val smsDate = java.time.Instant.ofEpochMilli(smsTimeMillis).atZone(zone).toLocalDate()
+        val year = when {
+            rawYear == null -> smsDate.year
+            rawYear > 100 -> rawYear
+            rawYear < 70 -> 2000 + rawYear
+            else -> 1900 + rawYear
+        }
+
+        var date = runCatching { java.time.LocalDate.of(year, month, day) }.getOrNull() ?: return null
+        if (rawYear == null) {
+            if (date.isBefore(smsDate.minusDays(20))) date = date.plusYears(1)
+            else if (date.isAfter(smsDate.plusDays(300))) date = date.minusYears(1)
+        }
+        return date.atStartOfDay(zone).toInstant().toEpochMilli()
+    }
 }

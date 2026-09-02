@@ -38,6 +38,10 @@ data class HomeUiState(
     val avgPerDay: Double = 0.0,
     val biggestExpense: Double = 0.0,
     val monthTxnCount: Int = 0,
+    /** Current month: avg/day pace × days in month. Past months: the full total. */
+    val monthEndProjection: Double = 0.0,
+    /** Nearest unpaid card bill — surfaced as a "pay soon" alert on Home. */
+    val upcomingCardBill: com.sethv.fintrack.core.model.CardBill? = null,
     val hasSmsPermission: Boolean = false,
     val hasNotificationPermission: Boolean = false,
 )
@@ -45,6 +49,7 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
+    private val creditCardRepository: com.sethv.fintrack.core.data.repository.CreditCardRepository,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -99,10 +104,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 transactionRepository.getAllTransactions(),
+                creditCardRepository.getNextUnpaidBill(),
                 dayTick,
                 selectedMonth,
-            ) { all, _, month ->
-                computeUiState(all, month)
+            ) { all, nextBill, _, month ->
+                computeUiState(all, month).copy(upcomingCardBill = nextBill)
             }.collect { state ->
                 _uiState.update { current ->
                     state.copy(
@@ -169,6 +175,8 @@ class HomeViewModel @Inject constructor(
             if (isCurrentMonth) today.dayOfMonth else target.lengthOfMonth()
         val avgPerDay = if (daysElapsed > 0) monthlyTotal / daysElapsed else 0.0
         val biggestExpense = monthlyDebits.maxOfOrNull { it.amount } ?: 0.0
+        val monthEndProjection =
+            if (isCurrentMonth) avgPerDay * target.lengthOfMonth() else monthlyTotal
 
         // Last 7 calendar days (incl. today), oldest → newest, debits only.
         // Always relative to TODAY regardless of the selected month.
@@ -206,6 +214,7 @@ class HomeViewModel @Inject constructor(
             avgPerDay = avgPerDay,
             biggestExpense = biggestExpense,
             monthTxnCount = monthlyDebits.size,
+            monthEndProjection = monthEndProjection,
         )
     }
 

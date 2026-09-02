@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":feature:expense"))
     implementation(project(":feature:home"))
+    implementation(project(":feature:cards"))
     implementation(project(":feature:networth"))
     implementation(project(":service:sms"))
     implementation(project(":service:parser"))

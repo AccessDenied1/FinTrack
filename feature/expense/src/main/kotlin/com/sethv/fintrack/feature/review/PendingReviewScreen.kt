@@ -115,10 +115,10 @@ fun PendingReviewScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PendingList(
-    items: List<PendingTransaction>,
+    items: List<PendingReviewItem>,
     contentPadding: PaddingValues,
-    onAccept: (PendingTransaction) -> Unit,
-    onReject: (PendingTransaction) -> Unit,
+    onAccept: (PendingReviewItem) -> Unit,
+    onReject: (PendingReviewItem) -> Unit,
     onOpen: (Long) -> Unit,
 ) {
     LazyColumn(
@@ -132,21 +132,25 @@ private fun PendingList(
         verticalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm),
     ) {
         item {
+            val duplicateCount = items.count { it.possibleDuplicate }
+            val dupNote = if (duplicateCount > 0) {
+                " • $duplicateCount possible duplicate${if (duplicateCount == 1) "" else "s"}"
+            } else ""
             Text(
-                text = "${items.size} pending transaction${if (items.size == 1) "" else "s"}",
+                text = "${items.size} pending transaction${if (items.size == 1) "" else "s"}$dupNote",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(vertical = FinTrackSpacing.Xs),
             )
         }
-        items(items = items, key = { it.id }) { item ->
+        items(items = items, key = { it.pending.id }) { item ->
             PendingCard(
                 item = item,
                 // Rows slide smoothly as siblings are accepted/rejected.
                 modifier = Modifier.animateItemPlacement(),
                 onAccept = { onAccept(item) },
                 onReject = { onReject(item) },
-                onOpen = { onOpen(item.id) },
+                onOpen = { onOpen(item.pending.id) },
             )
         }
     }
@@ -155,19 +159,20 @@ private fun PendingList(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PendingCard(
-    item: PendingTransaction,
+    item: PendingReviewItem,
     modifier: Modifier = Modifier,
     onAccept: () -> Unit,
     onReject: () -> Unit,
     onOpen: () -> Unit,
 ) {
+    val pending = item.pending
     val haptics = LocalHapticFeedback.current
-    val accent = if (item.type == TransactionType.CREDIT) {
+    val accent = if (pending.type == TransactionType.CREDIT) {
         MaterialTheme.colorScheme.tertiaryContainer
     } else {
         MaterialTheme.colorScheme.errorContainer
     }
-    val onAccent = if (item.type == TransactionType.CREDIT) {
+    val onAccent = if (pending.type == TransactionType.CREDIT) {
         MaterialTheme.colorScheme.onTertiaryContainer
     } else {
         MaterialTheme.colorScheme.onErrorContainer
@@ -175,11 +180,17 @@ private fun PendingCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (item.possibleDuplicate) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
         onClick = onOpen,
     ) {
         Column(modifier = Modifier.padding(FinTrackSpacing.SmPlus)) {
-            TransactionItem(transaction = item.toTransactionLike())
+            TransactionItem(transaction = pending.toTransactionLike())
             HorizontalDivider(modifier = Modifier.padding(vertical = FinTrackSpacing.Sm))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -201,18 +212,34 @@ private fun PendingCard(
                     },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Accept")
+                    Text(if (item.possibleDuplicate) "Keep anyway" else "Accept")
                 }
             }
             Spacer(modifier = Modifier.height(FinTrackSpacing.Xs))
-            // Tiny accent strip so the user sees the type at a glance.
-            Surface(color = accent, contentColor = onAccent, shape = MaterialTheme.shapes.extraSmall) {
-                val typeLabel = if (item.type == TransactionType.CREDIT) "Received" else "Spent"
-                Text(
-                    text = "$typeLabel • ${formatTimestamp(item.dateTime)} • ${item.bank.ifBlank { "Unknown" }}",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = FinTrackSpacing.Sm, vertical = 2.dp),
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm)) {
+                // Tiny accent strip so the user sees the type at a glance.
+                Surface(color = accent, contentColor = onAccent, shape = MaterialTheme.shapes.extraSmall) {
+                    val typeLabel = if (pending.type == TransactionType.CREDIT) "Received" else "Spent"
+                    Text(
+                        text = "$typeLabel • ${formatTimestamp(pending.dateTime)} • ${pending.bank.ifBlank { "Unknown" }}",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = FinTrackSpacing.Sm, vertical = 2.dp),
+                    )
+                }
+                if (item.possibleDuplicate) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        shape = MaterialTheme.shapes.extraSmall,
+                    ) {
+                        Text(
+                            text = "Possible duplicate",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = FinTrackSpacing.Sm, vertical = 2.dp),
+                        )
+                    }
+                }
             }
         }
     }

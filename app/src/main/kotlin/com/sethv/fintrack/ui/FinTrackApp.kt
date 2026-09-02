@@ -3,6 +3,7 @@ package com.sethv.fintrack.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.Badge
@@ -39,6 +40,7 @@ data class BottomNavItem(
 private val bottomNavItems = listOf(
     BottomNavItem("Home", Icons.Rounded.Wallet, Route.Home.route),
     BottomNavItem("Review", Icons.Rounded.Inbox, Route.PendingReview.route),
+    BottomNavItem("Cards", Icons.Rounded.CreditCard, Route.Cards.route),
     BottomNavItem("Net Worth", Icons.Rounded.AccountBalance, Route.NetWorth.route),
 )
 
@@ -46,6 +48,7 @@ private val bottomNavItems = listOf(
 @Composable
 fun FinTrackApp(
     initialPendingId: Long? = null,
+    initialOpenCards: Boolean = false,
     onNavControllerReady: (NavHostController) -> Unit = {},
     mainViewModel: MainViewModel = hiltViewModel(),
 ) {
@@ -69,6 +72,16 @@ fun FinTrackApp(
     LaunchedEffect(initialPendingId) {
         initialPendingId?.let { pendingId ->
             navController.navigate(Route.ExpenseReview.createRoute(pendingId)) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    // Card-bill notifications deep-link straight into the Cards tab.
+    LaunchedEffect(initialOpenCards) {
+        if (initialOpenCards) {
+            navController.navigate(Route.Cards.route) {
+                popUpTo(Route.Home.route) { saveState = true }
                 launchSingleTop = true
             }
         }

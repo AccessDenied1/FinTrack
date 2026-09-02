@@ -1,5 +1,7 @@
 package com.sethv.fintrack.core.data.di
 
+import com.sethv.fintrack.core.data.repository.CreditCardRepository
+import com.sethv.fintrack.core.data.repository.CreditCardRepositoryImpl
 import com.sethv.fintrack.core.data.repository.NetWorthRepository
 import com.sethv.fintrack.core.data.repository.NetWorthRepositoryImpl
 import com.sethv.fintrack.core.data.repository.PendingTransactionRepository
@@ -33,4 +35,10 @@ abstract class DataModule {
     abstract fun bindNetWorthRepository(
         impl: NetWorthRepositoryImpl,
     ): NetWorthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCreditCardRepository(
+        impl: CreditCardRepositoryImpl,
+    ): CreditCardRepository
 }

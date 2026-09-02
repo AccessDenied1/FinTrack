@@ -7,6 +7,7 @@ import com.sethv.fintrack.core.model.TransactionType
 import io.mockk.coEvery
 import io.mockk.mockk
 import androidx.lifecycle.viewModelScope
+import com.sethv.fintrack.core.data.repository.CreditCardRepository
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -28,6 +29,7 @@ class HomeViewModelTest {
 
     private val zone = ZoneId.of("Asia/Kolkata")
     private val repository: TransactionRepository = mockk()
+    private val creditCardRepository: CreditCardRepository = mockk()
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -47,7 +49,8 @@ class HomeViewModelTest {
      */
     private fun buildVm(clock: Clock): HomeViewModel {
         coEvery { repository.getAllTransactions() } returns flowOf(emptyList())
-        return HomeViewModel(repository, clock).also { vm ->
+        coEvery { creditCardRepository.getNextUnpaidBill() } returns flowOf(null)
+        return HomeViewModel(repository, creditCardRepository, clock).also { vm ->
             vm.viewModelScope.coroutineContext.cancelChildren()
         }
     }
@@ -223,5 +226,7 @@ class HomeViewModelTest {
         assertEquals(true, state.isCurrentMonth)
         // Jul 15 clock → 15 elapsed days.
         assertEquals(33.3333, state.avgPerDay, 0.001)
+        // Projection: 33.33/day pace × 31 July days ≈ 1033.
+        assertEquals(500.0 / 15 * 31, state.monthEndProjection, 0.01)
     }
 }

@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.sethv.fintrack.feature.cards.CardsScreen
 import com.sethv.fintrack.feature.expense.ExpenseListScreen
 import com.sethv.fintrack.feature.expense.ReviewScreen
 import com.sethv.fintrack.feature.home.HomeScreen
@@ -31,6 +32,8 @@ sealed class Route(val route: String) {
     data object ExpenseList : Route("expense/list")
 
     data object NetWorth : Route("networth")
+
+    data object Cards : Route("cards")
 }
 
 @Composable
@@ -71,6 +74,13 @@ fun FinTrackNavHost(
                         restoreState = true
                     }
                 },
+                onNavigateToCards = {
+                    navController.navigate(Route.Cards.route) {
+                        popUpTo(Route.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
             )
         }
         composable(Route.PendingReview.route) {
@@ -105,6 +115,9 @@ fun FinTrackNavHost(
         }
         composable(Route.NetWorth.route) {
             NetWorthScreen()
+        }
+        composable(Route.Cards.route) {
+            CardsScreen()
         }
     }
 }

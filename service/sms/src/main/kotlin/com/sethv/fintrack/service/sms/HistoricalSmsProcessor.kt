@@ -13,9 +13,11 @@ import kotlinx.coroutines.flow.first
 class HistoricalSmsProcessor @Inject constructor(
     private val historicalSmsReader: HistoricalSmsReader,
     private val smsParser: SmsParser,
+    private val cardSmsParser: com.sethv.fintrack.service.parser.CardSmsParser,
     private val categorizer: TransactionCategorizer,
     private val pendingTransactionRepository: PendingTransactionRepository,
     private val transactionRepository: TransactionRepository,
+    private val creditCardRepository: com.sethv.fintrack.core.data.repository.CreditCardRepository,
 ) {
 
     suspend fun scanAndProcess(): Int {
@@ -28,6 +30,20 @@ class HistoricalSmsProcessor @Inject constructor(
 
         var count = 0
         for (sms in allSms) {
+            // Card statements & payments first — they bypass the txn queue.
+            val cardHandled = try {
+                ingestCardSms(sms)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Card ingestion failed during scan", t)
+                false
+            }
+            // Card bills/payments are ingested into the Cards section, not the
+            // transaction ledger — so they must NOT inflate the "N transactions
+            // imported" count reported back to the user.
+            if (cardHandled) {
+                continue
+            }
+
             val parsed = try {
                 smsParser.parse(sms)
             } catch (t: Throwable) {
@@ -77,5 +93,28 @@ class HistoricalSmsProcessor @Inject constructor(
 
     private companion object {
         const val TAG = "FinTrack.HistScan"
+    }
+
+    /** Ingests one historical SMS as a card bill or payment. Returns false when it isn't one. */
+    private suspend fun ingestCardSms(sms: com.sethv.fintrack.core.model.RawSms): Boolean {
+        val bill = cardSmsParser.parseBill(sms)
+        if (bill != null) {
+            val cardId = creditCardRepository.findOrCreateCard(bill.bankHint, bill.cardLastFour)
+            creditCardRepository.upsertBill(
+                cardId = cardId,
+                totalDue = bill.totalDue,
+                minDue = bill.minDue ?: 0.0,
+                dueDate = bill.dueDate,
+                statementLabel = bill.statementLabel,
+            )
+            return true
+        }
+        val payment = cardSmsParser.parsePayment(sms)
+        if (payment != null) {
+            val cardId = creditCardRepository.findOrCreateCard(payment.bankHint, payment.cardLastFour)
+            creditCardRepository.settleBillWithPayment(cardId, payment.amount)
+            return true
+        }
+        return false
     }
 }

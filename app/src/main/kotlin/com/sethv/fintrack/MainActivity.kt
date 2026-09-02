@@ -27,10 +27,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val initialPendingId = extractPendingTransactionId(intent)
+        val openCards = isCardDeepLink(intent)
         setContent {
             FinTrackTheme {
                 FinTrackApp(
                     initialPendingId = initialPendingId,
+                    initialOpenCards = openCards,
                     onNavControllerReady = { controller ->
                         navController = controller
                         pendingDeepLinkId?.let { pendingId ->
@@ -46,6 +48,15 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (isCardDeepLink(intent)) {
+            val controller = navController
+            controller?.navigate(Route.Cards.route) {
+                popUpTo(Route.Home.route) { saveState = true }
+                launchSingleTop = true
+            }
+            return
+        }
+
         val pendingId = extractPendingTransactionId(intent) ?: return
         val controller = navController
         if (controller != null) {
@@ -55,6 +66,9 @@ class MainActivity : ComponentActivity() {
             pendingDeepLinkId = pendingId
         }
     }
+
+    private fun isCardDeepLink(intent: Intent?): Boolean =
+        intent?.action == TransactionNotifierImpl.ACTION_OPEN_CARDS
 
     private fun navigateToReview(controller: NavHostController, pendingId: Long) {
         controller.navigate(Route.ExpenseReview.createRoute(pendingId)) {

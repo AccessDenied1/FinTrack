@@ -25,4 +25,3 @@ data class PendingTransactionEntity(
     val createdAt: Long,
     val status: String,
 )
-

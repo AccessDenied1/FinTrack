@@ -25,7 +25,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material3.Button
@@ -36,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,7 +46,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -64,8 +69,8 @@ import com.sethv.fintrack.core.ui.component.DonutSlice
 import com.sethv.fintrack.core.ui.component.EmptyState
 import com.sethv.fintrack.core.ui.component.PermissionCard
 import com.sethv.fintrack.core.ui.component.SectionHeader
-import com.sethv.fintrack.core.ui.component.SparkLine
 import com.sethv.fintrack.core.ui.component.TransactionItem
+import com.sethv.fintrack.core.ui.component.WeeklyBarsChart
 import com.sethv.fintrack.core.ui.theme.FinTrackSpacing
 import com.sethv.fintrack.core.ui.theme.LocalFinTrackColors
 import com.sethv.fintrack.core.ui.util.Format
@@ -78,12 +83,14 @@ fun HomeScreen(
     onNavigateToExpenseList: () -> Unit,
     onNavigateToReview: (Long) -> Unit,
     onNavigateToReviewTab: () -> Unit = {},
+    onNavigateToCards: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
     scanSmsViewModel: ScanSmsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scanState by scanSmsViewModel.scanState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showScanSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(scanSmsViewModel) {
         scanSmsViewModel.navEvents.collect { event ->
@@ -138,11 +145,23 @@ fun HomeScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("FinTrack") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("FinTrack") },
+                actions = {
+                    // Historical import lives here — a deliberate action, not
+                    // permanent home-screen real estate.
+                    if (uiState.hasSmsPermission) {
+                        IconButton(onClick = { showScanSheet = true }) {
+                            Icon(Icons.Outlined.History, contentDescription = "Import past SMS transactions")
+                        }
+                    }
+                },
+            )
+        },
     ) { paddingValues ->
         HomeContent(
             uiState = uiState,
-            scanState = scanState,
             paddingValues = paddingValues,
             onRequestSmsPermission = { smsPermissionLauncher.launch(smsPermissions) },
             onRequestNotificationPermission = {
@@ -150,28 +169,40 @@ fun HomeScreen(
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
-            onStartScan = scanSmsViewModel::startScan,
-            onResetScanState = scanSmsViewModel::resetScanState,
             onNavigateToExpenseList = onNavigateToExpenseList,
-            onNavigateToReviewTab = onNavigateToReviewTab,
+            onNavigateToCards = onNavigateToCards,
             onPreviousMonth = viewModel::onPreviousMonth,
             onNextMonth = viewModel::onNextMonth,
             onCurrentMonthSelected = viewModel::onCurrentMonthSelected,
         )
+    }
+
+    if (showScanSheet) {
+        ModalBottomSheet(onDismissRequest = { showScanSheet = false }) {
+            Column(modifier = Modifier.padding(horizontal = FinTrackSpacing.Md)) {
+                ScanPastSmsCard(
+                    scanState = scanState,
+                    onStartScan = scanSmsViewModel::startScan,
+                    onResetScanState = scanSmsViewModel::resetScanState,
+                    onNavigateToReviewTab = {
+                        showScanSheet = false
+                        onNavigateToReviewTab()
+                    },
+                    modifier = Modifier.padding(bottom = FinTrackSpacing.Xl),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
-    scanState: ScanState,
     paddingValues: PaddingValues,
     onRequestSmsPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onStartScan: () -> Unit,
-    onResetScanState: () -> Unit,
     onNavigateToExpenseList: () -> Unit,
-    onNavigateToReviewTab: () -> Unit,
+    onNavigateToCards: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onCurrentMonthSelected: () -> Unit,
@@ -203,17 +234,6 @@ private fun HomeContent(
             }
         }
 
-        if (uiState.hasSmsPermission) {
-            item {
-                ScanPastSmsCard(
-                    scanState = scanState,
-                    onStartScan = onStartScan,
-                    onResetScanState = onResetScanState,
-                    onNavigateToReviewTab = onNavigateToReviewTab,
-                )
-            }
-        }
-
         item { MonthlySummaryCard(
             uiState = uiState,
             onPreviousMonth = onPreviousMonth,
@@ -224,6 +244,19 @@ private fun HomeContent(
         if (uiState.dailySpendingTrend.any { it > 0.0 }) {
             item {
                 WeeklyTrendCard(trend = uiState.dailySpendingTrend)
+            }
+        }
+
+        // Card-bill radar: any unpaid bill due within a week surfaces here.
+        val upcomingBill = uiState.upcomingCardBill
+        if (upcomingBill != null) {
+            val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(
+                upcomingBill.dueDate - System.currentTimeMillis(),
+            ).toInt()
+            if (days <= 7) {
+                item(key = "bill-alert") {
+                    CardBillAlertCard(bill = upcomingBill, days = days, onClick = onNavigateToCards)
+                }
             }
         }
 
@@ -284,9 +317,10 @@ private fun ScanPastSmsCard(
     onStartScan: () -> Unit,
     onResetScanState: () -> Unit,
     onNavigateToReviewTab: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ),
@@ -363,7 +397,65 @@ private fun ScanPastSmsCard(
 }
 
 @Composable
+private fun CardBillAlertCard(bill: com.sethv.fintrack.core.model.CardBill, days: Int, onClick: () -> Unit) {
+    val color = when {
+        days < 0 -> Color(0xFFC62828)
+        days <= 3 -> Color(0xFFE65100)
+        else -> Color(0xFFF9A825)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(FinTrackSpacing.Md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CreditCard,
+                contentDescription = null,
+                tint = color,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Card bill due soon",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "${Format.currency(bill.totalDue)} — ${if (days < 0) "overdue" else "in ${days}d"}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(
+                text = "Pay",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = color,
+            )
+        }
+    }
+}
+
+@Composable
 private fun WeeklyTrendCard(trend: List<Double>) {
+    // Weekday initials for the last 7 days, oldest → newest (last = today).
+    val dayLabels = remember(trend) {
+        (6L downTo 0L).map { daysAgo ->
+            java.time.LocalDate.now()
+                .minusDays(daysAgo)
+                .dayOfWeek
+                .getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.getDefault())
+                .uppercase()
+        }
+    }
+    val weekTotal = trend.sum()
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
             Row(
@@ -376,18 +468,16 @@ private fun WeeklyTrendCard(trend: List<Double>) {
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = "Last 7 days • ${Format.currency(trend.sum())}",
+                    text = "This week • ${Format.currency(weekTotal)}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
-            SparkLine(
+            WeeklyBarsChart(
                 values = trend,
-                lineColor = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
+                dayLabels = dayLabels,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -540,7 +630,12 @@ private fun QuickStatsRow(uiState: HomeUiState) {
         StatDivider()
         QuickStat(label = "Biggest", value = Format.currency(uiState.biggestExpense))
         StatDivider()
-        QuickStat(label = "Txns", value = uiState.monthTxnCount.toString())
+        if (uiState.isCurrentMonth) {
+            // Where this month is heading at the current daily pace.
+            QuickStat(label = "Projected", value = Format.currency(uiState.monthEndProjection))
+        } else {
+            QuickStat(label = "Txns", value = uiState.monthTxnCount.toString())
+        }
     }
 }
 

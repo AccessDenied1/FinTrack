@@ -6,6 +6,8 @@ import com.sethv.fintrack.core.data.repository.PendingTransactionRepository
 import com.sethv.fintrack.core.data.repository.TransactionRepository
 import com.sethv.fintrack.core.model.PendingTransaction
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,13 +15,21 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** A pending row plus derived context for the reviewer. */
+data class PendingReviewItem(
+    val pending: PendingTransaction,
+    /** Same amount+merchant+type on the same calendar day already exists elsewhere. */
+    val possibleDuplicate: Boolean = false,
+)
+
 data class PendingReviewUiState(
-    val items: List<PendingTransaction> = emptyList(),
+    val items: List<PendingReviewItem> = emptyList(),
     val isEmpty: Boolean = true,
+    val duplicateCount: Int = 0,
 )
 
 sealed interface PendingReviewEvent {
@@ -35,13 +45,29 @@ class PendingReviewViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<PendingReviewUiState> =
-        pendingRepository.getPending()
-            .map { items -> PendingReviewUiState(items = items, isEmpty = items.isEmpty()) }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = PendingReviewUiState(),
+        combine(
+            pendingRepository.getPending(),
+            transactionRepository.getAllTransactions(),
+        ) { pendings, accepted ->
+            val items = pendings.map { p ->
+                PendingReviewItem(
+                    pending = p,
+                    // Exact re-deliveries are already dropped at ingest time;
+                    // this catches fuzzy twins so the USER makes the call.
+                    possibleDuplicate = isFuzzyDuplicateOfAccepted(p, accepted) ||
+                        countSiblingDuplicates(p, pendings) > 0,
+                )
+            }
+            PendingReviewUiState(
+                items = items,
+                isEmpty = items.isEmpty(),
+                duplicateCount = items.count { it.possibleDuplicate },
             )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PendingReviewUiState(),
+        )
 
     private val _events = MutableSharedFlow<PendingReviewEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<PendingReviewEvent> = _events.asSharedFlow()
@@ -61,7 +87,8 @@ class PendingReviewViewModel @Inject constructor(
         }
     }
 
-    fun accept(pending: PendingTransaction) = launchAction {
+    fun accept(item: PendingReviewItem) = launchAction {
+        val pending = item.pending
         runCatching {
             transactionRepository.acceptPending(
                 pending = pending,
@@ -79,8 +106,8 @@ class PendingReviewViewModel @Inject constructor(
         }
     }
 
-    fun reject(pending: PendingTransaction) = launchAction {
-        runCatching { pendingRepository.rejectPending(pending.id) }
+    fun reject(item: PendingReviewItem) = launchAction {
+        runCatching { pendingRepository.rejectPending(item.pending.id) }
             .onSuccess { _events.emit(PendingReviewEvent.Rejected(1)) }
             .onFailure { _events.emit(PendingReviewEvent.Error(it.message ?: "Failed to skip")) }
     }
@@ -91,7 +118,7 @@ class PendingReviewViewModel @Inject constructor(
         launchAction {
             runCatching {
                 // Single atomic insert + status update instead of N round-trips.
-                transactionRepository.acceptAllPending(items)
+                transactionRepository.acceptAllPending(items.map { it.pending })
             }.onSuccess { insertedIds ->
                 if (insertedIds.isNotEmpty()) {
                     _events.emit(PendingReviewEvent.Accepted(insertedIds.size))
@@ -103,7 +130,7 @@ class PendingReviewViewModel @Inject constructor(
     }
 
     fun rejectAll() {
-        val ids = uiState.value.items.map { it.id }
+        val ids = uiState.value.items.map { it.pending.id }
         if (ids.isEmpty()) return
         launchAction {
             runCatching { pendingRepository.rejectAllPending(ids) }
@@ -111,4 +138,29 @@ class PendingReviewViewModel @Inject constructor(
                 .onFailure { _events.emit(PendingReviewEvent.Error(it.message ?: "Failed to skip all")) }
         }
     }
+
+    private fun isFuzzyDuplicateOfAccepted(
+        candidate: PendingTransaction,
+        accepted: List<com.sethv.fintrack.core.model.Transaction>,
+    ): Boolean = accepted.any { txn ->
+        txn.type == candidate.type &&
+            txn.amount == candidate.amount &&
+            txn.merchant.equals(candidate.merchant, ignoreCase = true) &&
+            isSameCalendarDay(txn.dateTime, candidate.dateTime)
+    }
+
+    private fun countSiblingDuplicates(
+        candidate: PendingTransaction,
+        pendings: List<PendingTransaction>,
+    ): Int = pendings.count { other ->
+        other.id != candidate.id &&
+            other.type == candidate.type &&
+            other.amount == candidate.amount &&
+            other.merchant.equals(candidate.merchant, ignoreCase = true) &&
+            isSameCalendarDay(other.dateTime, candidate.dateTime)
+    }
+
+    private fun isSameCalendarDay(a: Long, b: Long): Boolean =
+        Instant.ofEpochMilli(a).atZone(ZoneId.systemDefault()).toLocalDate() ==
+            Instant.ofEpochMilli(b).atZone(ZoneId.systemDefault()).toLocalDate()
 }

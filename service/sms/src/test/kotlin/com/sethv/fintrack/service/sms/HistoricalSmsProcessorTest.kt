@@ -8,11 +8,14 @@ import com.sethv.fintrack.core.model.RawSms
 import com.sethv.fintrack.core.model.Transaction
 import com.sethv.fintrack.core.model.TransactionType
 import com.sethv.fintrack.service.categorizer.TransactionCategorizer
+import com.sethv.fintrack.service.notification.TransactionNotifier
+import com.sethv.fintrack.service.parser.CardSmsParser
 import com.sethv.fintrack.service.parser.SmsParser
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -23,9 +26,12 @@ class HistoricalSmsProcessorTest {
 
     private val reader: HistoricalSmsReader = mockk()
     private val smsParser: SmsParser = mockk()
+    private val cardSmsParser: CardSmsParser = mockk()
     private val categorizer: TransactionCategorizer = mockk()
     private val pendingRepository: PendingTransactionRepository = mockk()
     private val transactionRepository: TransactionRepository = mockk()
+    private val creditCardRepository: com.sethv.fintrack.core.data.repository.CreditCardRepository = mockk()
+    private val notifier: TransactionNotifier = mockk(relaxed = true)
 
     private lateinit var processor: HistoricalSmsProcessor
 
@@ -45,14 +51,21 @@ class HistoricalSmsProcessorTest {
         processor = HistoricalSmsProcessor(
             historicalSmsReader = reader,
             smsParser = smsParser,
+            cardSmsParser = cardSmsParser,
             categorizer = categorizer,
             pendingTransactionRepository = pendingRepository,
             transactionRepository = transactionRepository,
+            creditCardRepository = creditCardRepository,
         )
         every { categorizer.categorize(any()) } returns ExpenseCategory.FOOD
+        every { cardSmsParser.parseBill(any()) } returns null
+        every { cardSmsParser.parsePayment(any()) } returns null
         coEvery { pendingRepository.insertPending(any()) } returns 1L
         coEvery { transactionRepository.getAllTransactions() } returns flowOf(emptyList())
         coEvery { pendingRepository.existsBySmsFingerprint(any(), any()) } returns false
+        coEvery { creditCardRepository.findOrCreateCard(any(), any()) } returns 7L
+        coEvery { creditCardRepository.upsertBill(any(), any(), any(), any(), any()) } returns 77L
+        coEvery { creditCardRepository.settleBillWithPayment(any(), any()) } returns false
     }
 
     @Test

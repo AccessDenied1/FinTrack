@@ -46,6 +46,7 @@ class PendingReviewViewModelTest {
         Dispatchers.setMain(testDispatcher)
         pendingRepository = mockk(relaxed = true)
         transactionRepository = mockk(relaxed = true)
+        every { transactionRepository.getAllTransactions() } returns flowOf(emptyList())
     }
 
     @After
@@ -173,7 +174,7 @@ class PendingReviewViewModelTest {
         advanceUntilIdle()
 
         viewModel.events.test {
-            viewModel.accept(item)
+            viewModel.accept(PendingReviewItem(item))
             advanceUntilIdle()
 
             val event = awaitItem()
@@ -204,7 +205,7 @@ class PendingReviewViewModelTest {
         advanceUntilIdle()
 
         viewModel.events.test {
-            viewModel.reject(item)
+            viewModel.reject(PendingReviewItem(item))
             advanceUntilIdle()
 
             val event = awaitItem()
@@ -214,5 +215,66 @@ class PendingReviewViewModelTest {
         }
 
         coVerify(exactly = 1) { pendingRepository.rejectPending(7L) }
+    }
+
+    @Test
+    fun `flags possible duplicate when same amount-merchant-type exists on same day`() = runTest(testDispatcher) {
+        // Two Swiggy debits of Rs.350 the same day → second looks like a twin.
+        val first = pendingTransaction(id = 1).copy(
+            merchant = "SWIGGY",
+            amount = 350.0,
+            dateTime = 1_700_000_000_000L,
+        )
+        val second = pendingTransaction(id = 2).copy(
+            merchant = "swiggy", // case-insensitive merchant match
+            amount = 350.0,
+            dateTime = 1_700_000_000_000L + 60_000L, // a minute later, same day
+        )
+        every { pendingRepository.getPending() } returns flowOf(listOf(first, second))
+
+        val viewModel = PendingReviewViewModel(pendingRepository, transactionRepository)
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(true, state.items.all { it.possibleDuplicate })
+        assertEquals(2, state.duplicateCount)
+    }
+
+    @Test
+    fun `does not flag unique transactions as duplicates`() = runTest(testDispatcher) {
+        val swiggy = pendingTransaction(id = 1).copy(merchant = "SWIGGY", amount = 350.0, dateTime = 1_700_000_000_000L)
+        val amazon = pendingTransaction(id = 2).copy(merchant = "AMAZON", amount = 350.0, dateTime = 1_700_000_000_000L)
+
+        every { pendingRepository.getPending() } returns flowOf(listOf(swiggy, amazon))
+
+        val viewModel = PendingReviewViewModel(pendingRepository, transactionRepository)
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(false, state.items.any { it.possibleDuplicate })
+        assertEquals(0, state.duplicateCount)
+    }
+
+    @Test
+    fun `flags duplicate against already accepted ledger entry on same day`() = runTest(testDispatcher) {
+        val pending = pendingTransaction(id = 5).copy(merchant = "UBER", amount = 220.0, dateTime = 1_700_000_000_000L)
+        val acceptedTwin = com.sethv.fintrack.core.model.Transaction(
+            id = 99,
+            amount = 220.0,
+            merchant = "Uber",
+            category = ExpenseCategory.TRANSPORT,
+            type = TransactionType.DEBIT,
+            dateTime = 1_700_000_000_000L + 3_600_000L, // an hour later, same day
+        )
+        every { pendingRepository.getPending() } returns flowOf(listOf(pending))
+        every { transactionRepository.getAllTransactions() } returns flowOf(listOf(acceptedTwin))
+
+        val viewModel = PendingReviewViewModel(pendingRepository, transactionRepository)
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.items.single().possibleDuplicate)
     }
 }

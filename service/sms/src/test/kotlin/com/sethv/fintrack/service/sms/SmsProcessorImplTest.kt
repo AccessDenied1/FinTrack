@@ -25,9 +25,11 @@ import org.junit.Test
 class SmsProcessorImplTest {
 
     private val smsParser: SmsParser = mockk()
+    private val cardSmsParser: com.sethv.fintrack.service.parser.CardSmsParser = mockk()
     private val categorizer: TransactionCategorizer = mockk()
     private val pendingRepository: PendingTransactionRepository = mockk()
     private val transactionRepository: TransactionRepository = mockk()
+    private val creditCardRepository: com.sethv.fintrack.core.data.repository.CreditCardRepository = mockk()
     private val notifier: TransactionNotifier = mockk(relaxed = true)
 
     private lateinit var processor: SmsProcessorImpl
@@ -51,9 +53,11 @@ class SmsProcessorImplTest {
     fun setup() {
         processor = SmsProcessorImpl(
             smsParser = smsParser,
+            cardSmsParser = cardSmsParser,
             categorizer = categorizer,
             pendingTransactionRepository = pendingRepository,
             transactionRepository = transactionRepository,
+            creditCardRepository = creditCardRepository,
             transactionNotifier = notifier,
             ioDispatcher = UnconfinedTestDispatcher(),
         )
@@ -63,6 +67,71 @@ class SmsProcessorImplTest {
         coEvery { pendingRepository.existsBySmsFingerprint(any(), any()) } returns false
         coEvery { transactionRepository.existsBySmsFingerprint(any(), any()) } returns false
         coEvery { pendingRepository.insertPending(any()) } returns 5L
+        coEvery { cardSmsParser.parseBill(any()) } returns null
+        coEvery { cardSmsParser.parsePayment(any()) } returns null
+    }
+
+    @Test
+    fun `card bill SMS creates bill and alerts - bypasses review queue`() = runTest {
+        val bill = com.sethv.fintrack.service.parser.ParsedCardBill(
+            cardLastFour = "4521",
+            bankHint = "HDFC",
+            totalDue = 45_000.0,
+            minDue = 2_250.0,
+            dueDate = 1_800_000_000_000L,
+            statementLabel = "August 2026",
+        )
+        every { smsParser.parse(any()) } returns null // txn parser must not claim it
+        coEvery { cardSmsParser.parseBill(rawSms) } returns bill
+        coEvery { creditCardRepository.findOrCreateCard("HDFC", "4521") } returns 77L
+        coEvery {
+            creditCardRepository.upsertBill(77L, 45_000.0, 2_250.0, 1_800_000_000_000L, "August 2026")
+        } returns 900L
+
+        processor.processNewSms(rawSms)
+
+        coVerify(exactly = 0) { pendingRepository.insertPending(any()) }
+        verify(exactly = 1) {
+            notifier.showCardBillAlert("HDFC", "4521", 45_000.0, 2_250.0, 1_800_000_000_000L, 900L)
+        }
+        verify(exactly = 0) { notifier.showTransactionNotification(any()) }
+    }
+
+    @Test
+    fun `payment confirmation SMS settles matching unpaid bill and confirms`() = runTest {
+        val payment = com.sethv.fintrack.service.parser.ParsedCardPayment(
+            cardLastFour = "4521",
+            bankHint = "HDFC",
+            amount = 45_000.0,
+        )
+        every { smsParser.parse(any()) } returns null
+        coEvery { cardSmsParser.parseBill(any()) } returns null
+        coEvery { cardSmsParser.parsePayment(rawSms) } returns payment
+        coEvery { creditCardRepository.findOrCreateCard("HDFC", "4521") } returns 77L
+        coEvery { creditCardRepository.settleBillWithPayment(77L, 45_000.0) } returns true
+
+        processor.processNewSms(rawSms)
+
+        verify(exactly = 1) { notifier.showBillPaidConfirmation("HDFC", "4521", 45_000.0) }
+        coVerify(exactly = 0) { pendingRepository.insertPending(any()) }
+    }
+
+    @Test
+    fun `partial payment below total due does NOT auto-settle or notify paid`() = runTest {
+        val payment = com.sethv.fintrack.service.parser.ParsedCardPayment(
+            cardLastFour = "4521",
+            bankHint = "HDFC",
+            amount = 2_250.0, // only the minimum
+        )
+        every { smsParser.parse(any()) } returns null
+        coEvery { cardSmsParser.parseBill(any()) } returns null
+        coEvery { cardSmsParser.parsePayment(rawSms) } returns payment
+        coEvery { creditCardRepository.findOrCreateCard("HDFC", "4521") } returns 77L
+        coEvery { creditCardRepository.settleBillWithPayment(77L, 2_250.0) } returns false
+
+        processor.processNewSms(rawSms)
+
+        verify(exactly = 0) { notifier.showBillPaidConfirmation(any(), any(), any()) }
     }
 
     @Test

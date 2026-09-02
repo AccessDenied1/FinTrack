@@ -24,3 +24,42 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_pending_transactions_dateTime` ON `pending_transactions` (`dateTime`)")
     }
 }
+
+// v4: credit card management — cards auto-registered from bill/payment SMS
+// and their statement bills with due dates.
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS credit_cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                bankName TEXT NOT NULL,
+                lastFour TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                createdAt INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_credit_cards_bankName_lastFour` ON `credit_cards` (`bankName`, `lastFour`)")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS card_bills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                cardId INTEGER NOT NULL,
+                totalDue REAL NOT NULL,
+                minDue REAL NOT NULL DEFAULT 0.0,
+                dueDate INTEGER NOT NULL,
+                statementLabel TEXT NOT NULL DEFAULT '',
+                generatedAt INTEGER NOT NULL,
+                isPaid INTEGER NOT NULL DEFAULT 0,
+                paidAt INTEGER NOT NULL DEFAULT 0,
+                paidAmount REAL NOT NULL DEFAULT 0.0
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_card_bills_cardId` ON `card_bills` (`cardId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_card_bills_dueDate` ON `card_bills` (`dueDate`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_card_bills_isPaid` ON `card_bills` (`isPaid`)")
+    }
+}
