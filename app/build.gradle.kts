@@ -53,6 +53,7 @@ dependencies {
     implementation(project(":feature:home"))
     implementation(project(":feature:cards"))
     implementation(project(":feature:networth"))
+    implementation(project(":feature:settings"))
     implementation(project(":service:sms"))
     implementation(project(":service:parser"))
     implementation(project(":service:categorizer"))

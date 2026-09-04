@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -98,6 +99,7 @@ fun HomeScreen(
     onNavigateToReview: (Long) -> Unit,
     onNavigateToReviewTab: () -> Unit = {},
     onNavigateToCards: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
     scanSmsViewModel: ScanSmsViewModel = hiltViewModel(),
 ) {
@@ -182,6 +184,9 @@ fun HomeScreen(
                             Icon(Icons.Outlined.History, contentDescription = "Import past SMS", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "More")
@@ -191,6 +196,11 @@ fun HomeScreen(
                                 text = { Text("Delete all data") },
                                 leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
                                 onClick = { showMenu = false; confirmDeleteAll = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Settings") },
+                                leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                                onClick = { showMenu = false; onNavigateToSettings() },
                             )
                         }
                     }

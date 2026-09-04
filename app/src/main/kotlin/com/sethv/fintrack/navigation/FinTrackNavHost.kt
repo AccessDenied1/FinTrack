@@ -19,6 +19,7 @@ import com.sethv.fintrack.feature.expense.ReviewScreen
 import com.sethv.fintrack.feature.home.HomeScreen
 import com.sethv.fintrack.feature.networth.NetWorthScreen
 import com.sethv.fintrack.feature.review.PendingReviewScreen
+import com.sethv.fintrack.feature.settings.SettingsScreen
 
 sealed class Route(val route: String) {
     data object Home : Route("home")
@@ -37,6 +38,8 @@ sealed class Route(val route: String) {
     data object NetWorth : Route("networth")
 
     data object Cards : Route("cards")
+
+    data object Settings : Route("settings")
 }
 
 @Composable
@@ -84,6 +87,9 @@ fun FinTrackNavHost(
                         restoreState = true
                     }
                 },
+                onNavigateToSettings = {
+                    navController.navigate(Route.Settings.route)
+                },
             )
         }
         composable(Route.PendingReview.route) {
@@ -128,6 +134,9 @@ fun FinTrackNavHost(
         }
         composable(Route.Cards.route) {
             CardsScreen()
+        }
+        composable(Route.Settings.route) {
+            SettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
