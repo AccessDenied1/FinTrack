@@ -2,20 +2,18 @@
 
 Thanks for considering a contribution — FinTrack is built for real Indian banking SMS, and every edge case you fix helps someone track their money.
 
-## Branching model
+## Branching model (main + dev only)
 
 ```
 feature/*  ─┐
-fix/*      ─┼─►  dev  ─►  staging  ─►  main
-chore/*    ─┘      ▲         ▲         ▲
-                  │         │         │
-              integration  pre-prod  production (protected, tagged v*.*.*)
+fix/*      ─┼─►  dev  ──►  main
+chore/*    ─┘      ▲         ▲
+              integration  production (protected, tagged v*.*.*)
 ```
 
-- **`main`** — stable, always releasable. Protected. Only merges from `staging` via PR. Tags `v1.1.0` → GitHub Release + signed `bundleRelease`.
-- **`staging`** — pre-production. Mirrors `main` + release candidates. CI runs `lint` + `assembleRelease` (unsigned) for QA.
-- **`dev`** — integration. All feature branches target `dev` first. CI builds `app-debug.apk` on every push for testers.
-- **`feature/<name>`**, **`fix/<name>`** — branch off `dev`, PR back to `dev`.
+- **`main`** — stable, always releasable. Protected. Only merges from `dev` via PR. Tags `v1.1.0` → GitHub Release + signed `bundleRelease`. **CI runs here only** (`push`/`PR` to `main` → tests + lint + debug).
+- **`dev`** — integration. All feature branches target `dev`. **No CI on push to `dev`** — keeps noise low; you get CI when you open `PR dev → main`.
+- **`feature/<name>`**, **`fix/<name>`** — branch off `dev`, PR back to `dev` (no CI), then `dev → main` PR triggers CI.
 
 **Flow for a new feature:**
 ```bash
@@ -23,8 +21,10 @@ git checkout dev; git pull
 git checkout -b feature/hold-parser
 # ... work, commit ...
 git push -u origin feature/hold-parser
-# PR: feature/hold-parser → dev (CI must be green)
-# After review: dev → staging (QA) → main (release + tag)
+# PR: feature/hold-parser → dev (no CI — fast)
+git checkout dev; git merge feature/hold-parser; git push
+# PR: dev → main (CI runs: test + lint + debug)
+# After green: merge → tag v1.2.0 → Release workflow builds AAB/APK
 ```
 
 **Versioning:** `app/build.gradle.kts` `versionCode` (int, ever-increasing) + `versionName` (`1.1.0`). Tag `v1.1.0` must match `versionName`.
@@ -42,10 +42,10 @@ git push -u origin feature/hold-parser
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `CI` (`.github/workflows/build.yml`) | push to `main/dev/staging` + PRs + manual | `testDebugUnitTest` → `lintDebug` → `assembleDebug` → artifact `FinTrack-debug-<branch>-<sha>` (30d) |
+| `CI` (`.github/workflows/build.yml`) | `push`/`PR` to `main` only + manual | `testDebugUnitTest` → `lintDebug` → `assembleDebug` → artifact `FinTrack-debug-main-<sha>` (30d) |
 | `Release` (`.github/workflows/release.yml`) | tag `v*.*.*` | gate tests → `assembleRelease` + `bundleRelease` → artifacts + GitHub Release with changelog |
 
-**Debug APK:** Any push to `dev` (or manual `CI` dispatch) gives you a debug APK under *Actions → CI → Artifacts*. Install via `adb install`.
+**Debug APK:** Open `PR dev → main` or push to `main` or manual `Actions → CI → Run workflow` → download debug APK. Install via `adb install`. No builds on `dev` pushes (quiet dev).
 
 **Release APK/AAB:** Push a tag:
 ```bash
@@ -68,6 +68,7 @@ For Play, add `FINTRACK_KEYSTORE_*` secrets and enable `signingConfigs` in `app/
 ## Branch protection (maintainer)
 
 Enable in GitHub → Settings → Branches:
-- `main` / `staging` / `dev` → Require PR, Require `test` + `lint` status, Dismiss stale, No force push.
+- `main` → Require PR from `dev`, Require `test` + `lint` status, Dismiss stale, No force push.
+- `dev` → No protection (fast pushes).
 
 Questions? Open an issue or discussion.
