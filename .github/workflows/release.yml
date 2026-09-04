@@ -71,13 +71,13 @@ jobs:
         with: { fetch-depth: 0 }
 
       - name: Download APK
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: FinTrack-release-${{ github.ref_name }}-apk
           path: ./artifacts/apk
 
       - name: Download AAB
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: FinTrack-release-${{ github.ref_name }}-aab
           path: ./artifacts/aab
