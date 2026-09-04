@@ -14,7 +14,7 @@ coroutines = "1.8.1"
 material3 = "1.2.1"
 junit = "4.13.2"
 junitExt = "1.1.5"
-mockk = "1.13.10"
+mockk = "1.14.11"
 turbine = "1.1.0"
 
 [libraries]
