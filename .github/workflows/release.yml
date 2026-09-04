@@ -48,14 +48,14 @@ jobs:
         run: ./gradlew bundleRelease --no-daemon
 
       - name: Upload release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FinTrack-release-${{ github.ref_name }}-apk
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 90
 
       - name: Upload release AAB
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FinTrack-release-${{ github.ref_name }}-aab
           path: app/build/outputs/bundle/release/app-release.aab
