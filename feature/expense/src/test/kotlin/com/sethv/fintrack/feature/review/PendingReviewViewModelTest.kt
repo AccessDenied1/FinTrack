@@ -96,7 +96,7 @@ class PendingReviewViewModelTest {
 
         coVerify(exactly = 1) { transactionRepository.acceptAllPending(items) }
         // No fall-through to the single-row acceptPending — that was the old N+1 path.
-        coVerify(exactly = 0) { transactionRepository.acceptPending(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transactionRepository.acceptPending(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -167,7 +167,7 @@ class PendingReviewViewModelTest {
     fun `accept (single) calls acceptPending with parsed fields and emits Accepted(1)`() = runTest(testDispatcher) {
         val item = pendingTransaction(id = 7, amount = 250.0, category = ExpenseCategory.GROCERIES)
         every { pendingRepository.getPending() } returns flowOf(listOf(item))
-        coEvery { transactionRepository.acceptPending(any(), any(), any(), any(), any()) } returns 999L
+        coEvery { transactionRepository.acceptPending(any(), any(), any(), any(), any(), any()) } returns 999L
 
         val viewModel = PendingReviewViewModel(pendingRepository, transactionRepository)
         backgroundScope.launch { viewModel.uiState.collect {} }
@@ -189,6 +189,7 @@ class PendingReviewViewModelTest {
                 amount = 250.0,
                 merchant = "merchant 7",
                 category = ExpenseCategory.GROCERIES,
+                type = TransactionType.DEBIT,
                 notes = "",
             )
         }

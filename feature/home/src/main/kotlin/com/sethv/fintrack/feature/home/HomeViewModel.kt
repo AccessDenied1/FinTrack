@@ -2,7 +2,10 @@ package com.sethv.fintrack.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sethv.fintrack.core.data.repository.PendingTransactionRepository
 import com.sethv.fintrack.core.data.repository.TransactionRepository
+import com.sethv.fintrack.core.database.FinTrackDatabase
+import androidx.room.withTransaction
 import com.sethv.fintrack.core.model.Transaction
 import com.sethv.fintrack.core.model.TransactionType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +41,8 @@ data class HomeUiState(
     val avgPerDay: Double = 0.0,
     val biggestExpense: Double = 0.0,
     val monthTxnCount: Int = 0,
+    /** Debits on the current calendar day — always "today", even while time-travelling months. */
+    val todaySpending: Double = 0.0,
     /** Current month: avg/day pace × days in month. Past months: the full total. */
     val monthEndProjection: Double = 0.0,
     /** Nearest unpaid card bill — surfaced as a "pay soon" alert on Home. */
@@ -49,7 +54,9 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
+    private val pendingTransactionRepository: PendingTransactionRepository,
     private val creditCardRepository: com.sethv.fintrack.core.data.repository.CreditCardRepository,
+    private val database: FinTrackDatabase,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -98,6 +105,24 @@ class HomeViewModel @Inject constructor(
 
     fun onNotificationPermissionResult(granted: Boolean) {
         _uiState.update { it.copy(hasNotificationPermission = granted) }
+    }
+
+    /**
+     * Wipes every locally-stored financial record (privacy/data-deletion
+     * requirement): accepted transactions, the review queue, card statements,
+     * registered cards and the starting-balance setting. All inside one DB
+     * transaction, so a crash mid-delete cannot leave half-wiped data.
+     */
+    fun deleteAllData() {
+        viewModelScope.launch {
+            database.withTransaction {
+                database.transactionDao().deleteAll()
+                pendingTransactionRepository.deleteAll()
+                database.cardBillDao().deleteAll()
+                database.bankCardDao().deleteAll()
+                database.balanceSettingsDao().deleteAll()
+            }
+        }
     }
 
     private fun observeTransactions() {
@@ -190,6 +215,8 @@ class HomeViewModel @Inject constructor(
                     it.dateTime < endMs
             }.sumOf { it.amount }
         }
+        // Last element is today — reuse it instead of re-filtering.
+        val todaySpending = dailySpendingTrend.last()
 
         val categoryBreakdown = monthlyDebits
             .groupBy { it.category }
@@ -215,6 +242,7 @@ class HomeViewModel @Inject constructor(
             biggestExpense = biggestExpense,
             monthTxnCount = monthlyDebits.size,
             monthEndProjection = monthEndProjection,
+            todaySpending = todaySpending,
         )
     }
 

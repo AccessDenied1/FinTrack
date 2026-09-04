@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.sethv.fintrack.feature.cards.CardsScreen
+import com.sethv.fintrack.feature.expense.AddTransactionScreen
 import com.sethv.fintrack.feature.expense.ExpenseListScreen
 import com.sethv.fintrack.feature.expense.ReviewScreen
 import com.sethv.fintrack.feature.home.HomeScreen
@@ -30,6 +31,8 @@ sealed class Route(val route: String) {
     }
 
     data object ExpenseList : Route("expense/list")
+
+    data object AddTransaction : Route("expense/add")
 
     data object NetWorth : Route("networth")
 
@@ -110,6 +113,13 @@ fun FinTrackNavHost(
         }
         composable(Route.ExpenseList.route) {
             ExpenseListScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onAddTransaction = { navController.navigate(Route.AddTransaction.route) },
+            )
+        }
+        composable(Route.AddTransaction.route) {
+            AddTransactionScreen(
+                onSaved = { navController.popBackStack() },
                 onNavigateBack = { navController.popBackStack() },
             )
         }

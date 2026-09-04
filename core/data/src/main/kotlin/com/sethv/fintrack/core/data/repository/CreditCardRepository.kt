@@ -29,6 +29,9 @@ interface CreditCardRepository {
 
     suspend fun renameCard(cardId: Long, label: String)
 
+    /** Removes the card and every bill attached to it. */
+    suspend fun deleteCard(cardId: Long)
+
     /**
      * Upserts a parsed bill: matches an UNPAID bill of this card whose due date
      * falls within a tight window (±6 days) of [dueDate] and updates it;
@@ -50,11 +53,21 @@ interface CreditCardRepository {
     suspend fun unmarkBillPaid(billId: Long)
 
     /**
-     * Auto-payment matching: if an unpaid bill for [cardId] has totalDue <=
-     * [paidAmount] (+1% tolerance for interest/fees), it is marked PAID.
-     * Returns true when a bill was settled.
+     * Auto-payment matching. A full payment (>= the earliest unpaid bill's
+     * totalDue, +1% tolerance) settles that bill — it is marked PAID and
+     * returned. A partial payment is credited against the earliest bill's
+     * outstanding (totalDue reduced) and returns null. Returns null when the
+     * payment could not be applied at all (no unpaid bill in range) so callers
+     * can decide whether to credit it as a prepay.
      */
-    suspend fun settleBillWithPayment(cardId: Long, paidAmount: Double): Boolean
+    suspend fun settleBillWithPayment(cardId: Long, paidAmount: Double): CardBill?
+
+    /**
+     * Credits [amount] against this card's most recent bill (unpaid first, else
+     * the latest paid one) — used as a prepay fallback when [settleBillWithPayment]
+     * found nothing to settle. Never touches another card.
+     */
+    suspend fun creditPaymentToMostRecentBill(cardId: Long, amount: Double, paidAt: Long = System.currentTimeMillis())
 
     /** Nearest unpaid due date across all cards, or null when all clear. */
     fun getNextUnpaidBill(): Flow<CardBill?>

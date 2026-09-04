@@ -129,8 +129,8 @@ class SmsProcessorImpl @Inject constructor(
         if (payment != null) {
             val cardId = creditCardRepository.findOrCreateCard(payment.bankHint, payment.cardLastFour)
             val settled = creditCardRepository.settleBillWithPayment(cardId, payment.amount)
-            Log.d(TAG, "Card payment ${payment.amount}: settled=$settled")
-            if (settled) {
+            if (settled != null) {
+                Log.d(TAG, "Card payment ${payment.amount} settled bill id=${settled.id}")
                 try {
                     transactionNotifier.showBillPaidConfirmation(
                         bankName = payment.bankHint,
@@ -142,6 +142,11 @@ class SmsProcessorImpl @Inject constructor(
                 } catch (t: Throwable) {
                     Log.e(TAG, "Paid notifier threw", t)
                 }
+            } else {
+                // Partial payment (e.g. min due) or a prepay: credit the card's
+                // most recent bill instead of dropping the amount silently.
+                creditCardRepository.creditPaymentToMostRecentBill(cardId, payment.amount)
+                Log.d(TAG, "Card payment ${payment.amount} credited as partial/prepay")
             }
             return true
         }

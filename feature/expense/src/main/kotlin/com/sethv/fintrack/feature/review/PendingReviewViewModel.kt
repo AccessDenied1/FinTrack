@@ -95,6 +95,7 @@ class PendingReviewViewModel @Inject constructor(
                 amount = pending.amount,
                 merchant = pending.merchant,
                 category = pending.category,
+                type = pending.type,
                 notes = pending.notes,
             )
         }.onSuccess { resultId ->

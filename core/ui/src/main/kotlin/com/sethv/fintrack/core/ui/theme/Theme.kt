@@ -13,22 +13,26 @@ private val LightColorScheme = lightColorScheme(
     primary = GreenPrimary,
     onPrimary = Color.White,
     primaryContainer = GreenContainer,
-    onPrimaryContainer = Color(0xFF002114),
+    onPrimaryContainer = Color(0xFF0A2E1D),
     secondary = BlueSecondary,
     onSecondary = Color.White,
     secondaryContainer = BlueContainer,
-    onSecondaryContainer = Color(0xFF001D36),
+    onSecondaryContainer = Color(0xFF1B2E42),
     tertiary = TealTertiary,
     onTertiary = Color.White,
     tertiaryContainer = TealContainer,
-    onTertiaryContainer = Color(0xFF002022),
+    onTertiaryContainer = Color(0xFF2A2216),
     background = BackgroundLight,
     onBackground = OnBackgroundLight,
     surface = SurfaceLight,
     onSurface = OnSurfaceLight,
-    surfaceVariant = Color(0xFFDEE5DE),
-    onSurfaceVariant = Color(0xFF424942),
+    surfaceVariant = Color(0xFFE9E7E3),
+    onSurfaceVariant = Color(0xFF4A4642),
+    surfaceContainer = Color(0xFFF3F1ED),
+    surfaceContainerHigh = Color(0xFFEDEBE7),
+    surfaceContainerHighest = Color(0xFFE5E3DF),
     outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
     error = ErrorLight,
     onError = Color.White,
     errorContainer = DebitRedContainer,
@@ -37,40 +41,45 @@ private val LightColorScheme = lightColorScheme(
 
 private val DarkColorScheme = darkColorScheme(
     primary = GreenPrimaryDark,
-    onPrimary = Color(0xFF003822),
+    onPrimary = Color(0xFF00391F),
     primaryContainer = GreenContainerDark,
-    onPrimaryContainer = Color(0xFFB8E6CC),
+    onPrimaryContainer = Color(0xFFA8E6C5),
     secondary = BlueSecondaryDark,
-    onSecondary = Color(0xFF003258),
+    onSecondary = Color(0xFF003054),
     secondaryContainer = BlueContainerDark,
     onSecondaryContainer = Color(0xFFD0E4FF),
     tertiary = TealTertiaryDark,
-    onTertiary = Color(0xFF00363D),
+    onTertiary = Color(0xFF3A2E14),
     tertiaryContainer = TealContainerDark,
-    onTertiaryContainer = Color(0xFFB2EBF2),
+    onTertiaryContainer = Color(0xFFF0DDB8),
     background = BackgroundDark,
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
     onSurface = OnSurfaceDark,
-    surfaceVariant = Color(0xFF424942),
-    onSurfaceVariant = Color(0xFFC2C9C2),
+    surfaceVariant = Color(0xFF2A3230),
+    onSurfaceVariant = Color(0xFFC2C8BF),
+    surfaceContainer = Color(0xFF1E2422),
+    surfaceContainerHigh = Color(0xFF282E2C),
+    surfaceContainerHighest = Color(0xFF333937),
     outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
     error = ErrorDark,
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
+    onError = Color(0xFF4A0D0F),
+    errorContainer = Color(0xFF5A1A1E),
+    onErrorContainer = Color(0xFFF4DFDF),
 )
 
 /**
- * Brand-specific colors that the M3 ColorScheme can't model directly.
- * Reads of [CreditGreen]/[DebitRed] should go through this CompositionLocal
- * so they follow the dark/light theme correctly.
+ * Brand-specific ledger colors. Always read via LocalFinTrackColors
+ * so dark/light adapt correctly.
  */
 data class FinTrackColors(
     val credit: Color,
     val onCredit: Color,
     val debit: Color,
     val onDebit: Color,
+    val hairline: Color,
+    val onHairline: Color,
 )
 
 val LocalFinTrackColors = staticCompositionLocalOf {
@@ -79,27 +88,26 @@ val LocalFinTrackColors = staticCompositionLocalOf {
         onCredit = Color.White,
         debit = DebitRed,
         onDebit = Color.White,
+        hairline = HairlineLight,
+        onHairline = HairlineDark,
     )
 }
 
 @Composable
 fun FinTrackTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    /** Brand-first by default; set true to follow Material You on Android 12+. */
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    // dynamicColor branch is intentionally disabled by default — brand identity
-    // wins over Material You. Flip the flag if you want to A/B test.
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-    // Same values in both themes today; split here when dark-specific
-    // credit/debit tints are needed.
     val finTrackColors = FinTrackColors(
         credit = CreditGreen,
         onCredit = Color.White,
         debit = DebitRed,
         onDebit = Color.White,
+        hairline = if (darkTheme) HairlineDark else HairlineLight,
+        onHairline = if (darkTheme) HairlineLight else HairlineDark,
     )
 
     CompositionLocalProvider(LocalFinTrackColors provides finTrackColors) {

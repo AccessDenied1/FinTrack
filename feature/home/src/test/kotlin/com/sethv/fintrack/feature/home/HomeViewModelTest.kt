@@ -29,7 +29,9 @@ class HomeViewModelTest {
 
     private val zone = ZoneId.of("Asia/Kolkata")
     private val repository: TransactionRepository = mockk()
+    private val pendingRepository: com.sethv.fintrack.core.data.repository.PendingTransactionRepository = mockk()
     private val creditCardRepository: CreditCardRepository = mockk()
+    private val database: com.sethv.fintrack.core.database.FinTrackDatabase = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -50,7 +52,7 @@ class HomeViewModelTest {
     private fun buildVm(clock: Clock): HomeViewModel {
         coEvery { repository.getAllTransactions() } returns flowOf(emptyList())
         coEvery { creditCardRepository.getNextUnpaidBill() } returns flowOf(null)
-        return HomeViewModel(repository, creditCardRepository, clock).also { vm ->
+        return HomeViewModel(repository, pendingRepository, creditCardRepository, database, clock).also { vm ->
             vm.viewModelScope.coroutineContext.cancelChildren()
         }
     }

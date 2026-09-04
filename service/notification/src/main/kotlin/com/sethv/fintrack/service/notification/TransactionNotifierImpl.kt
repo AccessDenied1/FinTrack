@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.sethv.fintrack.core.common.util.Format
 import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.core.model.TransactionType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -93,10 +94,7 @@ class TransactionNotifierImpl @Inject constructor(
     }
 
     
-    private fun rupees(amount: Double): String {
-        val grouped = java.text.DecimalFormat("#,##,##0.##").format(amount)
-        return "₹$grouped"
-    }
+    private fun rupees(amount: Double): String = Format.currency(amount)
 
     private fun post(id: Int, channelId: String, title: String, text: String, intent: PendingIntent?) {
         val notification = NotificationCompat.Builder(context, channelId)

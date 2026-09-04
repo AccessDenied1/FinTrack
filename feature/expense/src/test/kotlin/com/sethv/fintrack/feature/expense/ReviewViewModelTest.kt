@@ -70,7 +70,7 @@ class ReviewViewModelTest {
     fun `rapid double accept only hits the repository once`() = runTest(testDispatcher) {
         // Gate the repository call open so both clicks queue before completion.
         val gate = CompletableDeferred<Long>()
-        coEvery { transactionRepository.acceptPending(any(), any(), any(), any(), any()) } coAnswers { gate.await() }
+        coEvery { transactionRepository.acceptPending(any(), any(), any(), any(), any(), any()) } coAnswers { gate.await() }
 
         val vm = buildViewModel()
         vm.acceptTransaction()
@@ -79,13 +79,13 @@ class ReviewViewModelTest {
         gate.complete(1001L)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { transactionRepository.acceptPending(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { transactionRepository.acceptPending(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun `accepting an already-handled row shows error instead of success event`() = runTest(testDispatcher) {
         coEvery {
-            transactionRepository.acceptPending(any(), any(), any(), any(), any())
+            transactionRepository.acceptPending(any(), any(), any(), any(), any(), any())
         } returns TransactionRepository.ALREADY_HANDLED
 
         val vm = buildViewModel()
@@ -102,7 +102,7 @@ class ReviewViewModelTest {
 
     @Test
     fun `successful accept emits accepted event`() = runTest(testDispatcher) {
-        coEvery { transactionRepository.acceptPending(any(), any(), any(), any(), any()) } returns 777L
+        coEvery { transactionRepository.acceptPending(any(), any(), any(), any(), any(), any()) } returns 777L
 
         val vm = buildViewModel()
         val loaded = vm.uiState.value.pendingTransaction!!
@@ -118,6 +118,7 @@ class ReviewViewModelTest {
                 amount = 350.0,
                 merchant = "SWIGGY",
                 category = ExpenseCategory.FOOD,
+                type = TransactionType.DEBIT,
                 notes = "",
             )
         }

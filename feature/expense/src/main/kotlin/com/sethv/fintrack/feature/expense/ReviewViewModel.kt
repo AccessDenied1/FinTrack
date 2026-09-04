@@ -24,6 +24,8 @@ data class ReviewUiState(
     val amount: Double = 0.0,
     val merchant: String = "",
     val category: ExpenseCategory = ExpenseCategory.OTHERS,
+    /** Editable — the SMS heuristics can misclassify the direction. */
+    val type: com.sethv.fintrack.core.model.TransactionType = com.sethv.fintrack.core.model.TransactionType.DEBIT,
     val notes: String = "",
     val error: String? = null,
     val isSaving: Boolean = false,
@@ -72,6 +74,7 @@ class ReviewViewModel @Inject constructor(
                             amount = pending.amount,
                             merchant = pending.merchant,
                             category = pending.category,
+                            type = pending.type,
                             notes = pending.notes,
                         )
                     }
@@ -94,6 +97,10 @@ class ReviewViewModel @Inject constructor(
 
     fun updateCategory(category: ExpenseCategory) {
         _uiState.update { it.copy(category = category) }
+    }
+
+    fun updateType(type: com.sethv.fintrack.core.model.TransactionType) {
+        _uiState.update { it.copy(type = type) }
     }
 
     fun updateNotes(notes: String) {
@@ -120,6 +127,7 @@ class ReviewViewModel @Inject constructor(
                 amount = _uiState.value.amount,
                 merchant = _uiState.value.merchant,
                 category = _uiState.value.category,
+                type = _uiState.value.type,
                 notes = _uiState.value.notes,
             )
             if (resultId == TransactionRepository.ALREADY_HANDLED) {

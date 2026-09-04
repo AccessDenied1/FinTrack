@@ -51,6 +51,10 @@ class PendingTransactionRepositoryImpl @Inject constructor(
         pendingTransactionDao.deletePending(id)
     }
 
+    override suspend fun deleteAll() {
+        pendingTransactionDao.deleteAll()
+    }
+
     override suspend fun existsBySmsFingerprint(smsBody: String, minuteBucket: Long): Boolean =
         pendingTransactionDao.countBySmsFingerprint(smsBody, minuteBucket) > 0
 }

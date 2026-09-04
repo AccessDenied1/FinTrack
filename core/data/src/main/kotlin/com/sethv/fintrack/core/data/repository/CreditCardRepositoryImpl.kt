@@ -50,6 +50,11 @@ class CreditCardRepositoryImpl @Inject constructor(
         bankCardDao.rename(cardId, label.trim())
     }
 
+    override suspend fun deleteCard(cardId: Long) {
+        cardBillDao.deleteByCard(cardId)
+        bankCardDao.deleteById(cardId)
+    }
+
     override suspend fun upsertBill(
         cardId: Long,
         totalDue: Double,
@@ -61,12 +66,12 @@ class CreditCardRepositoryImpl @Inject constructor(
         // cycles are ~28-31 days apart, so a TIGHT window only ever matches a
         // re-delivery / reminder for the SAME statement — never next month's,
         // which would otherwise silently overwrite an unpaid bill.
-        val existing = cardBillDao.findUnpaidForCardNearDue(
+        val existing = cardBillDao.findUnpaidForCardNearestDue(
             cardId = cardId,
-            fromInclusive = dueDate - SAME_STATEMENT_WINDOW,
+            targetDueDate = dueDate,
             toInclusive = dueDate + SAME_STATEMENT_WINDOW,
         )
-        if (existing != null) {
+        if (existing != null && kotlin.math.abs(existing.dueDate - dueDate) <= SAME_STATEMENT_WINDOW) {
             cardBillDao.update(
                 existing.copy(
                     totalDue = totalDue,
@@ -99,19 +104,45 @@ class CreditCardRepositoryImpl @Inject constructor(
         cardBillDao.unmarkPaid(billId)
     }
 
-    override suspend fun settleBillWithPayment(cardId: Long, paidAmount: Double): Boolean {
-        // A full payment covers the bill total; allow 1% (+₹1) headroom for
-        // interest/fees posted between statement and payment.
+    /**
+     * Auto-payment matching: settles the EARLIEST unpaid bill [paidAmount]
+     * fully covers (totalDue <= paidAmount + 1% tolerance for interest/fees
+     * posted between statement and payment). Earliest-first is deterministic
+     * and safe — settling a nearer bill before a later one never blocks the
+     * later bill from being settled by its own payment.
+     * Returns the settled bill, or null when nothing is fully covered (e.g. a
+     * minimum-due payment) so the caller can credit it via
+     * [creditPaymentToMostRecentBill] instead of dropping it.
+     */
+    override suspend fun settleBillWithPayment(cardId: Long, paidAmount: Double): CardBill? {
+        if (paidAmount <= 0.0) return null
+        val earliest = cardBillDao.findEarliestUnpaidForCard(cardId) ?: return null
         val tolerance = paidAmount * 1.01 + 1.0
-        val now = System.currentTimeMillis()
-        val bill = cardBillDao.findUnpaidForCardNearDue(
-            cardId = cardId,
-            fromInclusive = now - WINDOW_120_DAYS,
-            toInclusive = now + WINDOW_120_DAYS,
-        ) ?: return false
-        if (bill.totalDue > tolerance) return false
-        markBillPaid(bill.id, paidAmount)
-        return true
+        if (earliest.totalDue > tolerance) return null
+        cardBillDao.markPaid(earliest.id, System.currentTimeMillis(), paidAmount)
+        return earliest.toDomain()
+    }
+
+    /**
+     * Credits [amount] against this card's most recent bill (an unpaid one if
+     * any, else the latest paid statement). Reduces totalDue/minDue, and marks
+     * the bill PAID when the credit clears it. Never touches another card.
+     * Used for partial payments (min due) and prepays.
+     */
+    override suspend fun creditPaymentToMostRecentBill(cardId: Long, amount: Double, paidAt: Long) {
+        if (amount <= 0.0) return
+        val bill = cardBillDao.findMostRecentBillForCard(cardId) ?: return
+        val newTotal = (bill.totalDue - amount).coerceAtLeast(0.0)
+        val nowCleared = newTotal <= 0.0 && !bill.isPaid
+        cardBillDao.update(
+            bill.copy(
+                totalDue = newTotal,
+                minDue = (bill.minDue - amount).coerceAtLeast(0.0),
+                isPaid = bill.isPaid || nowCleared,
+                paidAt = if (nowCleared) paidAt else bill.paidAt,
+                paidAmount = bill.paidAmount + amount,
+            ),
+        )
     }
 
     override fun getNextUnpaidBill(): Flow<CardBill?> =
@@ -120,6 +151,5 @@ class CreditCardRepositoryImpl @Inject constructor(
     private companion object {
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
         const val SAME_STATEMENT_WINDOW = 6L * DAY_MILLIS
-        const val WINDOW_120_DAYS = 120L * DAY_MILLIS
     }
 }

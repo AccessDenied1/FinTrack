@@ -1,4 +1,4 @@
-package com.sethv.fintrack.core.ui.util
+package com.sethv.fintrack.core.common.util
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors

@@ -25,6 +25,9 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM transactions WHERE dateTime BETWEEN :startTime AND :endTime ORDER BY dateTime DESC")
     fun getByDateRange(startTime: Long, endTime: Long): Flow<List<TransactionEntity>>
 

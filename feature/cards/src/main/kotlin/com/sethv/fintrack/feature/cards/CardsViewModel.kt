@@ -112,13 +112,21 @@ class CardsViewModel @Inject constructor(
             runCatching { repository.unmarkBillPaid(billId) }
         }
     }
-
     fun renameCard(cardId: Long, label: String) {
         viewModelScope.launch {
-            runCatching { repository.renameCard(cardId, label) }
+            runCatching {
+                repository.renameCard(cardId, label)
+            }
         }
     }
 
+    fun deleteCard(cardId: Long) {
+        viewModelScope.launch {
+            runCatching {
+                repository.deleteCard(cardId)
+            }
+        }
+    }
     companion object {
         fun urgencyOf(bill: CardBill, nowMillis: Long = System.currentTimeMillis()): DueUrgency {
             val dayMillis = 24L * 60 * 60 * 1000

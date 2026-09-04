@@ -112,7 +112,10 @@ class HistoricalSmsProcessor @Inject constructor(
         val payment = cardSmsParser.parsePayment(sms)
         if (payment != null) {
             val cardId = creditCardRepository.findOrCreateCard(payment.bankHint, payment.cardLastFour)
-            creditCardRepository.settleBillWithPayment(cardId, payment.amount)
+            val settled = creditCardRepository.settleBillWithPayment(cardId, payment.amount)
+            if (settled == null) {
+                creditCardRepository.creditPaymentToMostRecentBill(cardId, payment.amount)
+            }
             return true
         }
         return false

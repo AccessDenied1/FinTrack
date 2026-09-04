@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:data"))
     implementation(project(":core:ui"))
+    implementation(libs.room.ktx)
     implementation(project(":service:sms"))
     implementation(project(":service:parser"))
     implementation(project(":service:categorizer"))

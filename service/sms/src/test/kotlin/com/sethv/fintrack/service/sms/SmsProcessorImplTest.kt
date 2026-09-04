@@ -108,7 +108,15 @@ class SmsProcessorImplTest {
         coEvery { cardSmsParser.parseBill(any()) } returns null
         coEvery { cardSmsParser.parsePayment(rawSms) } returns payment
         coEvery { creditCardRepository.findOrCreateCard("HDFC", "4521") } returns 77L
-        coEvery { creditCardRepository.settleBillWithPayment(77L, 45_000.0) } returns true
+        coEvery { creditCardRepository.settleBillWithPayment(77L, 45_000.0) } returns
+            com.sethv.fintrack.core.model.CardBill(
+                id = 901,
+                cardId = 77L,
+                totalDue = 45_000.0,
+                minDue = 2_250.0,
+                dueDate = 1_800_000_000_000L,
+                statementLabel = "August 2026",
+            )
 
         processor.processNewSms(rawSms)
 
@@ -127,11 +135,15 @@ class SmsProcessorImplTest {
         coEvery { cardSmsParser.parseBill(any()) } returns null
         coEvery { cardSmsParser.parsePayment(rawSms) } returns payment
         coEvery { creditCardRepository.findOrCreateCard("HDFC", "4521") } returns 77L
-        coEvery { creditCardRepository.settleBillWithPayment(77L, 2_250.0) } returns false
+        coEvery { creditCardRepository.settleBillWithPayment(77L, 2_250.0) } returns null
+        coEvery {
+            creditCardRepository.creditPaymentToMostRecentBill(77L, 2_250.0, any())
+        } returns Unit
 
         processor.processNewSms(rawSms)
 
         verify(exactly = 0) { notifier.showBillPaidConfirmation(any(), any(), any()) }
+        coVerify(exactly = 1) { creditCardRepository.creditPaymentToMostRecentBill(77L, 2_250.0, any()) }
     }
 
     @Test

@@ -16,64 +16,55 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-/**
- * Seven daily-spending bars with weekday initials underneath.
- *
- * - Bars scale against the week's peak; flat days render a small stub so the
- *   weekly rhythm stays readable.
- * - The LAST bar (today) is highlighted in [highlightColor].
- */
 @Composable
 fun WeeklyBarsChart(
     values: List<Double>,
     dayLabels: List<String>,
     modifier: Modifier = Modifier,
-    barColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+    barColor: Color = MaterialTheme.colorScheme.outlineVariant,
     highlightColor: Color = MaterialTheme.colorScheme.primary,
     labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     Column(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp),
-        ) {
+        val hairline = MaterialTheme.colorScheme.outlineVariant
+        Canvas(modifier = Modifier.fillMaxWidth().height(88.dp)) {
             if (values.isEmpty()) return@Canvas
             val peak = (values.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
             val slotWidth = size.width / values.size
-            val barWidth = slotWidth * 0.52f
-            val minHeight = 4.dp.toPx()
-            val drawableHeight = size.height
-
+            val barWidth = slotWidth * 0.38f
+            val minHeight = 3.dp.toPx()
+            val h = size.height
+            // hairline baseline — adaptive to light/dark
+            drawLine(
+                color = hairline,
+                start = Offset(0f, h - 0.5f),
+                end = Offset(size.width, h - 0.5f),
+                strokeWidth = 0.5.dp.toPx(),
+            )
             values.forEachIndexed { index, value ->
                 val fraction = (value / peak).coerceIn(0.0, 1.0)
-                val barHeight = (fraction * (drawableHeight - minHeight)).toFloat() + minHeight
+                val barHeight = (fraction * (h - 8.dp.toPx() - minHeight)).toFloat() + minHeight
                 val left = slotWidth * index + (slotWidth - barWidth) / 2f
-                val top = drawableHeight - barHeight
+                val top = h - barHeight - 4.dp.toPx()
+                val isToday = index == values.lastIndex
                 drawRoundRect(
-                    color = if (index == values.lastIndex) highlightColor else barColor,
+                    color = if (isToday) highlightColor else barColor.copy(alpha = 0.55f),
                     topLeft = Offset(left, top),
                     size = Size(barWidth, barHeight),
-                    cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx()),
+                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
                 )
             }
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
             dayLabels.forEachIndexed { index, label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
+                    letterSpacing = 0.4.sp,
                     fontWeight = if (index == dayLabels.lastIndex) FontWeight.Bold else FontWeight.Medium,
-                    color = if (index == dayLabels.lastIndex) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        labelColor
-                    },
+                    color = if (index == dayLabels.lastIndex) MaterialTheme.colorScheme.primary else labelColor,
                 )
             }
         }

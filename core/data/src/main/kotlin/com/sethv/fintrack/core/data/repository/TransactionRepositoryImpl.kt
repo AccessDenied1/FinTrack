@@ -9,6 +9,7 @@ import com.sethv.fintrack.core.model.ExpenseCategory
 import com.sethv.fintrack.core.model.PendingStatus
 import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.core.model.Transaction
+import com.sethv.fintrack.core.model.TransactionType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -27,12 +28,14 @@ class TransactionRepositoryImpl @Inject constructor(
         amount: Double,
         merchant: String,
         category: ExpenseCategory,
+        type: TransactionType,
         notes: String,
     ): Long {
         val transaction = pending.toTransaction(
             amount = amount,
             merchant = merchant,
             category = category,
+            type = type,
             notes = notes,
         )
         return database.withTransaction {
@@ -67,6 +70,7 @@ class TransactionRepositoryImpl @Inject constructor(
                     amount = p.amount,
                     merchant = p.merchant,
                     category = p.category,
+                    type = p.type,
                     notes = p.notes,
                 )
             }
@@ -99,6 +103,7 @@ private fun PendingTransaction.toTransaction(
     amount: Double,
     merchant: String,
     category: ExpenseCategory,
+    type: TransactionType,
     notes: String,
 ): Transaction = Transaction(
     amount = amount,

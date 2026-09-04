@@ -15,4 +15,7 @@ interface BalanceSettingsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSettings(settings: BalanceSettingsEntity)
+
+    @Query("DELETE FROM balance_settings")
+    suspend fun deleteAll()
 }

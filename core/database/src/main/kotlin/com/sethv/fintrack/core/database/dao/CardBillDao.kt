@@ -16,26 +16,45 @@ interface CardBillDao {
     @Update
     suspend fun update(entity: CardBillEntity)
 
-    @Query("SELECT * FROM card_bills ORDER BY dueDate DESC")
+    @Query("SELECT * FROM card_bills ORDER BY dueDate DESC, generatedAt DESC")
     fun getAll(): Flow<List<CardBillEntity>>
 
     @Query("SELECT * FROM card_bills WHERE id = :id")
     suspend fun getById(id: Long): CardBillEntity?
 
-    @Query("SELECT * FROM card_bills WHERE isPaid = 0 ORDER BY dueDate ASC")
+    @Query("SELECT * FROM card_bills WHERE isPaid = 0 ORDER BY dueDate ASC, generatedAt DESC")
     fun getUnpaid(): Flow<List<CardBillEntity>>
 
+    /**
+     * Unpaid bill whose due date is closest to [targetDueDate] (never a bill
+     * due strictly after [toInclusive]). Ties break toward the most recent
+     * statement, so a same-day re-delivery always resolves to the bill it
+     * belongs to. Deterministic — never an arbitrary row.
+     */
     @Query(
-        "SELECT * FROM card_bills WHERE cardId = :cardId AND isPaid = 0 " +
-            "AND dueDate BETWEEN :fromInclusive AND :toInclusive LIMIT 1",
+        "SELECT * FROM card_bills " +
+            "WHERE cardId = :cardId AND isPaid = 0 AND dueDate <= :toInclusive " +
+            "ORDER BY ABS(dueDate - :targetDueDate) ASC, generatedAt DESC LIMIT 1",
     )
-    suspend fun findUnpaidForCardNearDue(
+    suspend fun findUnpaidForCardNearestDue(
         cardId: Long,
-        fromInclusive: Long,
+        targetDueDate: Long,
         toInclusive: Long,
     ): CardBillEntity?
 
-    @Query("SELECT * FROM card_bills WHERE isPaid = 0 AND dueDate >= :now ORDER BY dueDate ASC LIMIT 1")
+    @Query(
+        "SELECT * FROM card_bills WHERE cardId = :cardId AND isPaid = 0 " +
+            "ORDER BY dueDate ASC, generatedAt DESC LIMIT 1",
+    )
+    suspend fun findEarliestUnpaidForCard(cardId: Long): CardBillEntity?
+
+    @Query(
+        "SELECT * FROM card_bills WHERE cardId = :cardId " +
+            "ORDER BY isPaid ASC, dueDate DESC, generatedAt DESC LIMIT 1",
+    )
+    suspend fun findMostRecentBillForCard(cardId: Long): CardBillEntity?
+
+    @Query("SELECT * FROM card_bills WHERE isPaid = 0 AND dueDate >= :now ORDER BY dueDate ASC, generatedAt DESC LIMIT 1")
     suspend fun findNextUnpaid(now: Long): CardBillEntity?
 
     @Query("UPDATE card_bills SET isPaid = 1, paidAt = :paidAt, paidAmount = :paidAmount WHERE id = :id")
@@ -43,4 +62,13 @@ interface CardBillDao {
 
     @Query("UPDATE card_bills SET isPaid = 0, paidAt = 0, paidAmount = 0.0 WHERE id = :id")
     suspend fun unmarkPaid(id: Long)
+
+    @Query("DELETE FROM card_bills WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM card_bills WHERE cardId = :cardId")
+    suspend fun deleteByCard(cardId: Long)
+
+    @Query("DELETE FROM card_bills")
+    suspend fun deleteAll()
 }

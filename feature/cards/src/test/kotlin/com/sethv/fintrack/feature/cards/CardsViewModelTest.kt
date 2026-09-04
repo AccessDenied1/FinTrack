@@ -144,4 +144,15 @@ class CardsViewModelTest {
 
         coVerify(exactly = 1) { repository.unmarkBillPaid(42L) }
     }
+
+    @Test
+    fun `deleteCard removes the card via repository`() = runTest(testDispatcher) {
+        val vm = buildVm(emptyList(), emptyList())
+        coEvery { repository.deleteCard(7L) } returns Unit
+
+        vm.deleteCard(7L)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.deleteCard(7L) }
+    }
 }

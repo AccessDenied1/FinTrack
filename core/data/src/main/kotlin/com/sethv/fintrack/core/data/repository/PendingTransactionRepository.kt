@@ -29,6 +29,9 @@ interface PendingTransactionRepository {
 
     suspend fun deletePending(id: Long)
 
+    /** Clears the entire queue (privacy/data-deletion). */
+    suspend fun deleteAll()
+
     /**
      * Duplicate guard for the ingest paths. Timestamps are compared as minute
      * buckets because SMSC and handset receive clocks skew.

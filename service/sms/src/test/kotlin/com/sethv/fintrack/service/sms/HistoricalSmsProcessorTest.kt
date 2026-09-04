@@ -65,7 +65,7 @@ class HistoricalSmsProcessorTest {
         coEvery { pendingRepository.existsBySmsFingerprint(any(), any()) } returns false
         coEvery { creditCardRepository.findOrCreateCard(any(), any()) } returns 7L
         coEvery { creditCardRepository.upsertBill(any(), any(), any(), any(), any()) } returns 77L
-        coEvery { creditCardRepository.settleBillWithPayment(any(), any()) } returns false
+        coEvery { creditCardRepository.settleBillWithPayment(any(), any()) } returns null
     }
 
     @Test

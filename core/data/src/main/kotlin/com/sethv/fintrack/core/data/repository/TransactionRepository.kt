@@ -15,8 +15,8 @@ interface TransactionRepository {
 
     /**
      * Promotes a pending row: inserts it as an accepted Transaction, then marks
-     * the pending row ACCEPTED. Caller-provided edits (amount/merchant/category/notes)
-     * are applied to the persisted transaction.
+     * the pending row ACCEPTED. Caller-provided edits (amount/merchant/category/
+     * type/notes) are applied to the persisted transaction.
      *
      * Guarded: the row's status is re-checked INSIDE the DB transaction, so a
      * double-tap or a race between review paths can never insert twice.
@@ -27,6 +27,7 @@ interface TransactionRepository {
         amount: Double,
         merchant: String,
         category: com.sethv.fintrack.core.model.ExpenseCategory,
+        type: com.sethv.fintrack.core.model.TransactionType,
         notes: String,
     ): Long
 

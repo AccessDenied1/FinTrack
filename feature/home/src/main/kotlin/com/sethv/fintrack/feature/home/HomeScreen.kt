@@ -6,8 +6,11 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,41 +28,50 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.rounded.CreditCard
-import androidx.compose.material.icons.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.rounded.KeyboardArrowRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,10 +83,12 @@ import com.sethv.fintrack.core.ui.component.PermissionCard
 import com.sethv.fintrack.core.ui.component.SectionHeader
 import com.sethv.fintrack.core.ui.component.TransactionItem
 import com.sethv.fintrack.core.ui.component.WeeklyBarsChart
+import com.sethv.fintrack.core.ui.theme.FinTrackShape
 import com.sethv.fintrack.core.ui.theme.FinTrackSpacing
 import com.sethv.fintrack.core.ui.theme.LocalFinTrackColors
 import com.sethv.fintrack.core.ui.util.Format
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +105,10 @@ fun HomeScreen(
     val scanState by scanSmsViewModel.scanState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showScanSheet by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(scanSmsViewModel) {
         scanSmsViewModel.navEvents.collect { event ->
@@ -101,33 +119,18 @@ fun HomeScreen(
         }
     }
 
-    val smsPermissions = arrayOf(
-        Manifest.permission.RECEIVE_SMS,
-        Manifest.permission.READ_SMS,
-    )
+    val smsPermissions = arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)
 
-    fun hasSmsPermission(): Boolean = smsPermissions.all { permission ->
-        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-    }
-
+    fun hasSmsPermission(): Boolean = smsPermissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
     fun hasNotificationPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS,
-        ) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
-    val smsPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-    ) { results ->
-        val granted = results.values.all { it }
-        viewModel.onPermissionResult(granted)
+    val smsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        viewModel.onPermissionResult(results.values.all { it })
     }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         viewModel.onNotificationPermissionResult(granted)
     }
 
@@ -135,39 +138,72 @@ fun HomeScreen(
         val smsGranted = hasSmsPermission()
         val notificationGranted = hasNotificationPermission()
         viewModel.updatePermissions(smsGranted, notificationGranted)
-
-        if (!smsGranted) {
-            smsPermissionLauncher.launch(smsPermissions)
-        }
+        if (!smsGranted) smsPermissionLauncher.launch(smsPermissions)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationGranted) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("FinTrack") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "FINTRACK",
+                            style = MaterialTheme.typography.titleSmall,
+                            letterSpacing = 1.6.sp,
+                            fontWeight = FontWeight.Black,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.primary, FinTrackShape.Pill)
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                text = "LEDGER",
+                                style = MaterialTheme.typography.labelSmall,
+                                letterSpacing = 0.8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 actions = {
-                    // Historical import lives here — a deliberate action, not
-                    // permanent home-screen real estate.
                     if (uiState.hasSmsPermission) {
                         IconButton(onClick = { showScanSheet = true }) {
-                            Icon(Icons.Outlined.History, contentDescription = "Import past SMS transactions")
+                            Icon(Icons.Outlined.History, contentDescription = "Import past SMS", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Delete all data") },
+                                leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                onClick = { showMenu = false; confirmDeleteAll = true },
+                            )
                         }
                     }
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { paddingValues ->
         HomeContent(
-            uiState = uiState,
-            paddingValues = paddingValues,
+            uiState = uiState, paddingValues = paddingValues,
             onRequestSmsPermission = { smsPermissionLauncher.launch(smsPermissions) },
             onRequestNotificationPermission = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             },
             onNavigateToExpenseList = onNavigateToExpenseList,
             onNavigateToCards = onNavigateToCards,
@@ -181,215 +217,141 @@ fun HomeScreen(
         ModalBottomSheet(onDismissRequest = { showScanSheet = false }) {
             Column(modifier = Modifier.padding(horizontal = FinTrackSpacing.Md)) {
                 ScanPastSmsCard(
-                    scanState = scanState,
-                    onStartScan = scanSmsViewModel::startScan,
+                    scanState = scanState, onStartScan = scanSmsViewModel::startScan,
                     onResetScanState = scanSmsViewModel::resetScanState,
-                    onNavigateToReviewTab = {
-                        showScanSheet = false
-                        onNavigateToReviewTab()
-                    },
+                    onNavigateToReviewTab = { showScanSheet = false; onNavigateToReviewTab() },
                     modifier = Modifier.padding(bottom = FinTrackSpacing.Xl),
                 )
             }
         }
     }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            title = { Text("Delete all data?", fontWeight = FontWeight.Bold) },
+            text = { Text("Removes every transaction, pending item, credit card, statement and your starting balance. Cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = { confirmDeleteAll = false; viewModel.deleteAllData(); scope.launch { snackbarHostState.showSnackbar("All data deleted") } },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = FinTrackShape.Pill,
+                ) { Text("Delete everything") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel") } },
+            shape = FinTrackShape.Medium,
+        )
+    }
 }
 
 @Composable
 private fun HomeContent(
-    uiState: HomeUiState,
-    paddingValues: PaddingValues,
-    onRequestSmsPermission: () -> Unit,
-    onRequestNotificationPermission: () -> Unit,
-    onNavigateToExpenseList: () -> Unit,
-    onNavigateToCards: () -> Unit,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    onCurrentMonthSelected: () -> Unit,
+    uiState: HomeUiState, paddingValues: PaddingValues,
+    onRequestSmsPermission: () -> Unit, onRequestNotificationPermission: () -> Unit,
+    onNavigateToExpenseList: () -> Unit, onNavigateToCards: () -> Unit,
+    onPreviousMonth: () -> Unit, onNextMonth: () -> Unit, onCurrentMonthSelected: () -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues),
+        modifier = Modifier.fillMaxSize().padding(paddingValues),
         contentPadding = PaddingValues(horizontal = FinTrackSpacing.Md, vertical = FinTrackSpacing.Md),
         verticalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
     ) {
         if (!uiState.hasSmsPermission) {
-            item {
-                PermissionCard(
-                    title = "SMS Permission Required",
-                    description = "Allow SMS access to automatically detect bank transaction messages and track your expenses.",
-                    onGrantClick = onRequestSmsPermission,
-                )
-            }
+            item { PermissionCard(title = "SMS Permission Required", description = "Allow SMS access to automatically detect bank transactions.", onGrantClick = onRequestSmsPermission) }
         }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !uiState.hasNotificationPermission) {
-            item {
-                PermissionCard(
-                    title = "Notification Permission Required",
-                    description = "Allow notifications to review new transactions as they are detected.",
-                    onGrantClick = onRequestNotificationPermission,
-                )
-            }
+            item { PermissionCard(title = "Notifications Required", description = "Allow notifications to review new transactions as they arrive.", onGrantClick = onRequestNotificationPermission) }
         }
 
-        item { MonthlySummaryCard(
-            uiState = uiState,
-            onPreviousMonth = onPreviousMonth,
-            onNextMonth = onNextMonth,
-            onCurrentMonthSelected = onCurrentMonthSelected,
-        ) }
+        item {
+            MonthlySummaryCard(
+                uiState = uiState, onPreviousMonth = onPreviousMonth,
+                onNextMonth = onNextMonth, onCurrentMonthSelected = onCurrentMonthSelected,
+            )
+        }
 
         if (uiState.dailySpendingTrend.any { it > 0.0 }) {
-            item {
-                WeeklyTrendCard(trend = uiState.dailySpendingTrend)
-            }
+            item { WeeklyTrendCard(trend = uiState.dailySpendingTrend) }
         }
 
-        // Card-bill radar: any unpaid bill due within a week surfaces here.
         val upcomingBill = uiState.upcomingCardBill
         if (upcomingBill != null) {
-            val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(
-                upcomingBill.dueDate - System.currentTimeMillis(),
-            ).toInt()
+            val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(upcomingBill.dueDate - System.currentTimeMillis()).toInt()
             if (days <= 7) {
-                item(key = "bill-alert") {
-                    CardBillAlertCard(bill = upcomingBill, days = days, onClick = onNavigateToCards)
-                }
+                item(key = "bill-alert") { CardBillAlertCard(bill = upcomingBill, days = days, onClick = onNavigateToCards) }
             }
         }
 
         if (uiState.categoryBreakdown.isNotEmpty()) {
-            item {
-                SectionHeader(title = "Spending by Category")
-            }
-            item {
-                CategoryBreakdownCard(breakdown = uiState.categoryBreakdown)
-            }
+            item { SectionHeader(title = "Spending by Category") }
+            item { CategoryBreakdownCard(breakdown = uiState.categoryBreakdown) }
         }
 
         item {
-            SectionHeader(
-                title = "Recent Transactions",
-                trailing = {
-                    androidx.compose.material3.TextButton(onClick = onNavigateToExpenseList) {
-                        Text("View all")
-                    }
-                },
-            )
+            SectionHeader(title = "Recent Transactions", trailing = {
+                TextButton(onClick = onNavigateToExpenseList) { Text("View all", fontWeight = FontWeight.SemiBold) }
+            })
         }
 
         if (uiState.recentTransactions.isEmpty()) {
             item {
                 EmptyState(
-                    icon = Icons.Outlined.ReceiptLong,
-                    title = "No transactions yet",
-                    subtitle = "Expenses will appear here once detected from SMS.",
-                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.AutoMirrored.Outlined.ReceiptLong, title = "No transactions yet",
+                    subtitle = "Expenses will appear here once detected from SMS.", modifier = Modifier.fillMaxWidth(),
                 )
             }
         } else {
-            itemsIndexed(
-                items = uiState.recentTransactions,
-                key = { _, txn -> txn.id },
-            ) { index, transaction ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .staggeredEntrance(index),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                ) {
-                    TransactionItem(transaction = transaction)
-                }
+            itemsIndexed(items = uiState.recentTransactions, key = { _, txn -> txn.id }) { index, transaction ->
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth().staggeredEntrance(index),
+                    shape = FinTrackShape.Medium,
+                    colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) { TransactionItem(transaction = transaction) }
             }
         }
-
         item { Spacer(modifier = Modifier.height(FinTrackSpacing.Md)) }
     }
 }
 
 @Composable
 private fun ScanPastSmsCard(
-    scanState: ScanState,
-    onStartScan: () -> Unit,
-    onResetScanState: () -> Unit,
-    onNavigateToReviewTab: () -> Unit,
-    modifier: Modifier = Modifier,
+    scanState: ScanState, onStartScan: () -> Unit, onResetScanState: () -> Unit,
+    onNavigateToReviewTab: () -> Unit, modifier: Modifier = Modifier,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        ),
-    ) {
+    OutlinedCard(modifier = modifier.fillMaxWidth(), shape = FinTrackShape.Medium) {
         Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
             when (scanState.status) {
                 ScanStatus.IDLE -> {
-                    Text(
-                        text = "Import Past Transactions",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
-                    Text(
-                        text = "Scan your SMS inbox to import historical bank transactions for review.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
-                    Button(onClick = onStartScan) { Text("Scan Past SMS") }
+                    Text(text = "Import Past Transactions", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = "Scan your SMS inbox to import historical bank transactions for review.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(onClick = onStartScan, shape = FinTrackShape.Pill) { Text("Scan Past SMS") }
                 }
                 ScanStatus.SCANNING -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                        Text(
-                            text = "Scanning SMS...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md)) {
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        Text(text = "Scanning SMS...", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 ScanStatus.COMPLETED -> {
                     Text(
-                        text = "Found ${scanState.transactionsFound} transaction${if (scanState.transactionsFound == 1) "" else "s"}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        text = if (scanState.transactionsFound == 0) "No new transactions found"
+                        else "Found ${scanState.transactionsFound} transaction${if (scanState.transactionsFound == 1) "" else "s"}",
+                        style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                     )
-                    Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm)) {
-                        if (scanState.transactionsFound > 0) {
-                            Button(onClick = onNavigateToReviewTab) { Text("Review All") }
-                        }
-                        OutlinedButton(onClick = onResetScanState) { Text("Done") }
+                        if (scanState.transactionsFound > 0) Button(onClick = onNavigateToReviewTab, shape = FinTrackShape.Pill) { Text("Review All") }
+                        OutlinedButton(onClick = onResetScanState, shape = FinTrackShape.Pill) { Text("Done") }
                     }
                 }
                 ScanStatus.ERROR -> {
-                    Text(
-                        text = "Scan failed",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
-                    Text(
-                        text = "Could not read SMS messages. Check permissions and try again.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Spacer(modifier = Modifier.height(FinTrackSpacing.Md))
-                    Button(onClick = {
-                        onResetScanState()
-                        onStartScan()
-                    }) { Text("Retry") }
+                    Text(text = "Scan failed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = "Could not read SMS messages. Check permissions and try again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = { onResetScanState(); onStartScan() }, shape = FinTrackShape.Pill) { Text("Retry") }
                 }
             }
         }
@@ -398,170 +360,92 @@ private fun ScanPastSmsCard(
 
 @Composable
 private fun CardBillAlertCard(bill: com.sethv.fintrack.core.model.CardBill, days: Int, onClick: () -> Unit) {
-    val color = when {
-        days < 0 -> Color(0xFFC62828)
-        days <= 3 -> Color(0xFFE65100)
-        else -> Color(0xFFF9A825)
+    val accent = when {
+        days < 0 -> MaterialTheme.colorScheme.error
+        days <= 3 -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
     }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = FinTrackShape.Medium,
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        Row(
-            modifier = Modifier.padding(FinTrackSpacing.Md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.CreditCard,
-                contentDescription = null,
-                tint = color,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Card bill due soon",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = "${Format.currency(bill.totalDue)} — ${if (days < 0) "overdue" else "in ${days}d"}",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.width(4.dp).height(72.dp).background(accent, FinTrackShape.Small))
+            Row(
+                modifier = Modifier.padding(FinTrackSpacing.Md).weight(1f),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Md),
+            ) {
+                Icon(Icons.Rounded.CreditCard, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "BILL DUE ${if (days < 0) "OVERDUE" else "IN ${days}D"}", style = MaterialTheme.typography.labelSmall, letterSpacing = 0.6.sp, fontWeight = FontWeight.Bold, color = accent)
+                    Text(text = Format.currency(bill.totalDue), style = MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Monospace), fontWeight = FontWeight.Bold)
+                }
+                Surface(color = accent, shape = FinTrackShape.Pill) {
+                    Text(text = "Pay", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
+                }
             }
-            Text(
-                text = "Pay",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = color,
-            )
         }
     }
 }
 
 @Composable
 private fun WeeklyTrendCard(trend: List<Double>) {
-    // Weekday initials for the last 7 days, oldest → newest (last = today).
     val dayLabels = remember(trend) {
-        (6L downTo 0L).map { daysAgo ->
-            java.time.LocalDate.now()
-                .minusDays(daysAgo)
-                .dayOfWeek
-                .getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.getDefault())
-                .uppercase()
+        (6L downTo 0L).map { d ->
+            java.time.LocalDate.now().minusDays(d).dayOfWeek
+                .getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.getDefault()).uppercase()
         }
     }
     val weekTotal = trend.sum()
-
-    Card(modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = FinTrackShape.Medium) {
         Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Daily spending",
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = "This week • ${Format.currency(weekTotal)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "DAILY SPENDING", style = MaterialTheme.typography.labelSmall, letterSpacing = 0.7.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = Format.currency(weekTotal), style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
-            Spacer(modifier = Modifier.height(FinTrackSpacing.Sm))
-            WeeklyBarsChart(
-                values = trend,
-                dayLabels = dayLabels,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Spacer(modifier = Modifier.height(12.dp))
+            WeeklyBarsChart(values = trend, dayLabels = dayLabels, modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
 @Composable
 private fun MonthlySummaryCard(
-    uiState: HomeUiState,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    onCurrentMonthSelected: () -> Unit,
+    uiState: HomeUiState, onPreviousMonth: () -> Unit, onNextMonth: () -> Unit, onCurrentMonthSelected: () -> Unit,
 ) {
     val delta = uiState.monthlyTotal - uiState.previousMonthTotal
-
-    // Comparison wording: current month is like-for-like (same day-span);
-    // past months compare against the full previous calendar month.
     val comparisonSuffix = if (uiState.isCurrentMonth) " vs same period last month" else " vs last month"
     val deltaLabel = when {
         uiState.previousMonthTotal == 0.0 && uiState.monthlyTotal == 0.0 -> "—"
         uiState.previousMonthTotal == 0.0 -> "—"
         delta > 0 -> "+${Format.currency(delta)}$comparisonSuffix"
-        delta < 0 -> "-${Format.currency(-delta)}$comparisonSuffix"
+        delta < 0 -> "−${Format.currency(-delta)}$comparisonSuffix"
         else -> "Same as last month"
     }
-
-    val gradient = Brush.verticalGradient(
-        colors = listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.secondaryContainer,
-        ),
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .drawBehind { drawRect(gradient) },
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = FinTrackShape.Large,
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            MonthNavigator(
-                selectedMonth = uiState.selectedMonth,
-                isCurrentMonth = uiState.isCurrentMonth,
-                onPreviousMonth = onPreviousMonth,
-                onNextMonth = onNextMonth,
-                onCurrentMonthSelected = onCurrentMonthSelected,
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = if (uiState.isCurrentMonth) "Spending this month" else "Spending",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-            )
-            AnimatedCurrency(
-                amount = uiState.monthlyTotal,
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+        Column(modifier = Modifier.padding(FinTrackSpacing.Lg)) {
+            MonthNavigator(selectedMonth = uiState.selectedMonth, isCurrentMonth = uiState.isCurrentMonth, onPreviousMonth = onPreviousMonth, onNextMonth = onNextMonth, onCurrentMonthSelected = onCurrentMonthSelected)
             Spacer(modifier = Modifier.height(16.dp))
-
+            Text(text = "SPENDING", style = MaterialTheme.typography.labelSmall, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AnimatedCurrency(amount = uiState.monthlyTotal, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.height(10.dp))
             val deltaColor = when {
                 delta > 0 -> LocalFinTrackColors.current.debit
                 delta < 0 -> LocalFinTrackColors.current.credit
-                else -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
-
-            androidx.compose.material3.Surface(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-            ) {
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = FinTrackShape.Pill) {
                 Text(
-                    text = deltaLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = deltaColor,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    text = deltaLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
+                    color = deltaColor, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                 )
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            Spacer(modifier = Modifier.height(20.dp))
             QuickStatsRow(uiState = uiState)
         }
     }
@@ -569,134 +453,63 @@ private fun MonthlySummaryCard(
 
 @Composable
 private fun MonthNavigator(
-    selectedMonth: java.time.YearMonth?,
-    isCurrentMonth: Boolean,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    onCurrentMonthSelected: () -> Unit,
+    selectedMonth: java.time.YearMonth?, isCurrentMonth: Boolean,
+    onPreviousMonth: () -> Unit, onNextMonth: () -> Unit, onCurrentMonthSelected: () -> Unit,
 ) {
     val displayed = selectedMonth ?: java.time.YearMonth.now()
-    val formatter = remember { DateTimeFormatter.ofPattern("MMMM yyyy") }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onPreviousMonth) {
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowLeft,
-                contentDescription = "Previous month",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+    val formatter = remember { DateTimeFormatter.ofPattern("MMM yyyy") }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPreviousMonth, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous month", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(FinTrackSpacing.Sm),
-            modifier = Modifier.clickable(onClick = onCurrentMonthSelected),
-        ) {
-            Text(
-                text = displayed.format(formatter).uppercase(),
-                style = MaterialTheme.typography.labelLarge,
-                letterSpacing = 1.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            if (isCurrentMonth) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
-                )
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.clickable(onClick = onCurrentMonthSelected)) {
+            Text(text = displayed.format(formatter).uppercase(), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            if (isCurrentMonth) Box(modifier = Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
         }
-        IconButton(onClick = onNextMonth, enabled = !isCurrentMonth) {
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowRight,
-                contentDescription = "Next month",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isCurrentMonth) 0.3f else 1f),
-            )
+        IconButton(onClick = onNextMonth, enabled = !isCurrentMonth, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next month", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isCurrentMonth) 0.35f else 1f))
         }
     }
 }
 
 @Composable
 private fun QuickStatsRow(uiState: HomeUiState) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        QuickStat(label = "Per day", value = Format.currency(uiState.avgPerDay))
-        StatDivider()
-        QuickStat(label = "Biggest", value = Format.currency(uiState.biggestExpense))
-        StatDivider()
-        if (uiState.isCurrentMonth) {
-            // Where this month is heading at the current daily pace.
-            QuickStat(label = "Projected", value = Format.currency(uiState.monthEndProjection))
-        } else {
-            QuickStat(label = "Txns", value = uiState.monthTxnCount.toString())
-        }
+    Row(modifier = Modifier.fillMaxWidth()) {
+        QuickStat(label = "Today", value = Format.currency(uiState.todaySpending), modifier = Modifier.weight(1f))
+        Box(modifier = Modifier.width(0.5.dp).height(36.dp).background(MaterialTheme.colorScheme.outlineVariant).align(Alignment.CenterVertically))
+        QuickStat(label = "Per day", value = Format.currency(uiState.avgPerDay), modifier = Modifier.weight(1f))
+        Box(modifier = Modifier.width(0.5.dp).height(36.dp).background(MaterialTheme.colorScheme.outlineVariant).align(Alignment.CenterVertically))
+        QuickStat(label = "Biggest", value = Format.currency(uiState.biggestExpense), modifier = Modifier.weight(1f))
+        Box(modifier = Modifier.width(0.5.dp).height(36.dp).background(MaterialTheme.colorScheme.outlineVariant).align(Alignment.CenterVertically))
+        if (uiState.isCurrentMonth) QuickStat(label = "Projected", value = Format.currency(uiState.monthEndProjection), modifier = Modifier.weight(1f))
+        else QuickStat(label = "Txns", value = uiState.monthTxnCount.toString(), modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun QuickStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-        )
+private fun QuickStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace), fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(text = label.uppercase(), style = MaterialTheme.typography.labelSmall, letterSpacing = 0.6.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-@Composable
-private fun StatDivider() {
-    Box(
-        modifier = Modifier
-            .height(28.dp)
-            .width(1.dp)
-            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)),
-    )
-}
-
-/**
- * Fade + rise entrance, delayed by [index] * 45ms — gives the recent list a
- * cascading reveal. Runs once per composition of each item.
- */
 @Composable
 private fun Modifier.staggeredEntrance(index: Int): Modifier {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(index * 45L)
-        progress.animateTo(1f, animationSpec = tween(durationMillis = 320))
+        delay(index * 40L)
+        progress.animateTo(1f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioMediumBouncy))
     }
-    return graphicsLayer {
-        alpha = progress.value
-        translationY = (1f - progress.value) * 40f
-    }
+    return graphicsLayer { alpha = progress.value; translationY = (1f - progress.value) * 24f }
 }
 
 @Composable
 private fun CategoryBreakdownCard(breakdown: List<CategorySpending>) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = FinTrackShape.Medium) {
         Column(modifier = Modifier.padding(FinTrackSpacing.Md)) {
-            val slices = breakdown.mapIndexed { idx, s ->
-                DonutSlice(
-                    label = s.category.displayName,
-                    value = s.percentage,
-                    colorIndex = idx,
-                )
-            }
-            CategoryDonutChart(
-                slices = slices,
-                centerLabel = "Total",
-                centerSubLabel = "${breakdown.size} categories",
-            )
+            val slices = breakdown.mapIndexed { idx, s -> DonutSlice(label = s.category.displayName, value = s.percentage, colorIndex = idx) }
+            CategoryDonutChart(slices = slices, centerLabel = "TOTAL", centerSubLabel = "${breakdown.size} categories")
         }
     }
+}

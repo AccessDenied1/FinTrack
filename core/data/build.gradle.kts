@@ -8,8 +8,10 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:model"))
-    implementation(project(":core:database"))
+    api(project(":core:model"))
+    // api: repository implementations expose Room types (withTransaction) to
+    // consumers, and screens may inject the database for bulk maintenance ops.
+    api(project(":core:database"))
     implementation(project(":core:common"))
     implementation(libs.kotlinx.coroutines.core)
     // withTransaction(...) for atomic bulk-accept across transaction + pending tables.

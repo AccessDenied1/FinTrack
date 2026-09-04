@@ -2,61 +2,71 @@ package com.sethv.fintrack.core.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand colors
-val GreenPrimary = Color(0xFF0F9D58) // Vibrant Google Green
-val GreenPrimaryDark = Color(0xFF1CE885) // Neon mint for dark mode
-val GreenContainer = Color(0xFFE6F4EA)
-val GreenContainerDark = Color(0xFF0A3D24)
+// ── Precision Ledger palette ─────────────────────────────────────────────
+// Editorial, paper-and-ink foundation. Emerald stays as the primary signal
+// (money in), slate for structure, warm brass for highlights. All containers
+// are desaturated paper tones — no neon, no purple slop.
 
-val BlueSecondary = Color(0xFF1A73E8) // Crisp Google Blue
-val BlueSecondaryDark = Color(0xFF669DF6)
-val BlueContainer = Color(0xFFE8F0FE)
-val BlueContainerDark = Color(0xFF132F53)
+val GreenPrimary = Color(0xFF0D7A4C)
+val GreenPrimaryDark = Color(0xFF6DD3A0)
+val GreenContainer = Color(0xFFE7F3EC)
+val GreenContainerDark = Color(0xFF123523)
 
-val TealTertiary = Color(0xFF009688)
-val TealTertiaryDark = Color(0xFF4DB6AC)
-val TealContainer = Color(0xFFE0F2F1)
-val TealContainerDark = Color(0xFF00332F)
+val BlueSecondary = Color(0xFF3A5B75)
+val BlueSecondaryDark = Color(0xFF8AB4D8)
+val BlueContainer = Color(0xFFE8EEF4)
+val BlueContainerDark = Color(0xFF1B2E42)
 
-// Surfaces
-val BackgroundLight = Color(0xFFF5F9F7)
+val TealTertiary = Color(0xFF8A6E3A)
+val TealTertiaryDark = Color(0xFFD4B78F)
+val TealContainer = Color(0xFFF3EBDA)
+val TealContainerDark = Color(0xFF2A2216)
+
+// Surfaces — warm paper vs deep ink
+val BackgroundLight = Color(0xFFF9F7F2)
 val SurfaceLight = Color(0xFFFFFFFF)
-val OnBackgroundLight = Color(0xFF1A1C1A)
-val OnSurfaceLight = Color(0xFF1A1C1A)
-val OutlineLight = Color(0xFF727972)
-val ErrorLight = Color(0xFFBA1A1A)
+val OnBackgroundLight = Color(0xFF1A1E1C)
+val OnSurfaceLight = Color(0xFF1A1E1C)
+val OutlineLight = Color(0xFFC2C8BF)
+val OutlineVariantLight = Color(0xFFE5E3DF)
+val ErrorLight = Color(0xFFA12B2F)
 
-val BackgroundDark = Color(0xFF0F1412)
-val SurfaceDark = Color(0xFF1A211E)
-val OnBackgroundDark = Color(0xFFE0E3E0)
-val OnSurfaceDark = Color(0xFFE0E3E0)
-val OutlineDark = Color(0xFF8B938B)
-val ErrorDark = Color(0xFFFFB4AB)
+val BackgroundDark = Color(0xFF0C1411)
+val SurfaceDark = Color(0xFF171E1C)
+val OnBackgroundDark = Color(0xFFE8E7E1)
+val OnSurfaceDark = Color(0xFFE8E7E1)
+val OutlineDark = Color(0xFF404943)
+val OutlineVariantDark = Color(0xFF2A3230)
+val ErrorDark = Color(0xFFE28A8E)
 
-// Semantic transaction colors
-val CreditGreen = Color(0xFF2E7D32)
-val CreditGreenContainer = Color(0xFFC8E6C9)
-val OnCreditGreenContainer = Color(0xFF1B5E20)
+// Semantic transaction colors — muted, ledger-like, not traffic-light
+val CreditGreen = Color(0xFF0E7A4C)
+val CreditGreenContainer = Color(0xFFE7F3EC)
+val OnCreditGreenContainer = Color(0xFF0A2E1D)
 
-val DebitRed = Color(0xFFC62828)
-val DebitRedContainer = Color(0xFFFFCDD2)
-val OnDebitRedContainer = Color(0xFFB71C1C)
+val DebitRed = Color(0xFFA12B2F)
+val DebitRedContainer = Color(0xFFF4DFDF)
+val OnDebitRedContainer = Color(0xFF3A0F10)
 
-// Categorical palette for category breakdown chart (donut / legend).
-// 12 hues, distinct in both light and dark themes.
+// Hairline and elevation — for paper/ink separation without heavy shadow
+val HairlineLight = Color(0xFFE5E3DF)
+val HairlineDark = Color(0xFF2A3230)
+
+// Categorical palette — editorial, muted, distinct in both themes
+// No neon; tones echo paper inks: emerald, slate, brass, brick, indigo, moss
 val CategoryPalette: List<Color> = listOf(
-    Color(0xFF1B7A4E), // green
-    Color(0xFF1565C0), // blue
-    Color(0xFF00838F), // teal
-    Color(0xFFE65100), // orange
-    Color(0xFF6A1B9A), // purple
-    Color(0xFFC62828), // red
-    Color(0xFFAD1457), // pink
-    Color(0xFF4527A0), // deep purple
-    Color(0xFF2E7D32), // leaf
-    Color(0xFFEF6C00), // amber
-    Color(0xFF00695C), // dark teal
-    Color(0xFF283593), // indigo
+    Color(0xFF0E7A4C), // emerald
+    Color(0xFF3A5B75), // slate
+    Color(0xFF8A6E3A), // brass
+    Color(0xFFA12B2F), // brick
+    Color(0xFF2E4A6B), // ink blue
+    Color(0xFF6B4A2E), // umber
+    Color(0xFF4A6356), // sage
+    Color(0xFF6B3A4A), // plum
+    Color(0xFF3A6B5A), // moss
+    Color(0xFF7A5A2E), // ochre
+    Color(0xFF4A5A6B), // stone blue
+    Color(0xFF5A3A6B), // dusk
 )
 
 fun colorForCategoryIndex(index: Int): Color =
