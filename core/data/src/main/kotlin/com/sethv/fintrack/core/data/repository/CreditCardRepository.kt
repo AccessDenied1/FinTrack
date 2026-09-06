@@ -46,7 +46,19 @@ interface CreditCardRepository {
         minDue: Double,
         dueDate: Long,
         statementLabel: String,
+        creditLimit: Double? = null,
+        statementStart: Long = 0L,
     ): Long
+
+    /**
+     * Finds a registered card by its bank name, matching case-insensitively and
+     * ignoring surrounding whitespace. Returns the first match's id, or null
+     * when no card's bank name matches [bankHint].
+     */
+    suspend fun findCardByBank(bankHint: String): Long?
+
+    /** Sets (or clears with null) the manual credit-limit override on a card. */
+    suspend fun updateLimit(cardId: Long, limit: Double?)
 
     suspend fun markBillPaid(billId: Long, paidAmount: Double, paidAt: Long = System.currentTimeMillis())
 

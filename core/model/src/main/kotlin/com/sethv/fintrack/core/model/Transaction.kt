@@ -11,4 +11,5 @@ data class Transaction(
     val notes: String = "",
     val smsBody: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    val cardId: Long? = null,
 )

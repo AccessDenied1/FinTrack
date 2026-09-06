@@ -106,6 +106,8 @@ class HistoricalSmsProcessor @Inject constructor(
                 minDue = bill.minDue ?: 0.0,
                 dueDate = bill.dueDate,
                 statementLabel = bill.statementLabel,
+                creditLimit = bill.creditLimit,
+                statementStart = bill.statementStart,
             )
             return true
         }

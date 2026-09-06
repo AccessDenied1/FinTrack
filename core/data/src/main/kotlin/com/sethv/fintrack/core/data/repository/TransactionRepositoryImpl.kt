@@ -11,6 +11,7 @@ import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.core.model.Transaction
 import com.sethv.fintrack.core.model.TransactionType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -18,6 +19,7 @@ class TransactionRepositoryImpl @Inject constructor(
     private val database: FinTrackDatabase,
     private val transactionDao: TransactionDao,
     private val pendingTransactionRepository: PendingTransactionRepository,
+    private val creditCardRepository: CreditCardRepository,
 ) : TransactionRepository {
 
     override suspend fun insertTransaction(transaction: Transaction): Long =
@@ -37,6 +39,7 @@ class TransactionRepositoryImpl @Inject constructor(
             category = category,
             type = type,
             notes = notes,
+            cardId = resolveCardId(pending),
         )
         return database.withTransaction {
             // Re-validate INSIDE the DB transaction: the row may have been
@@ -49,6 +52,21 @@ class TransactionRepositoryImpl @Inject constructor(
             pendingTransactionRepository.acceptPending(pending.id)
             newId
         }
+    }
+
+    /**
+     * Lazy credit-card link: when the pending row names a bank that matches a
+     * registered card AND its timestamp falls inside that card's matching
+     * unpaid bill window [statementStart - 1d, dueDate + 1d], returns the card
+     * id; otherwise null (old rows and bank-name-only rows stay unlinked).
+     */
+    private suspend fun resolveCardId(pending: PendingTransaction): Long? {
+        val cardId = creditCardRepository.findCardByBank(pending.bank) ?: return null
+        val bill = creditCardRepository.getBillsForCard(cardId).first()
+            .filter { !it.isPaid && it.statementStart > 0L }
+            .firstOrNull { pending.dateTime in (it.statementStart - CARD_LINK_WINDOW)..(it.dueDate + CARD_LINK_WINDOW) }
+            ?: return null
+        return cardId
     }
 
     override suspend fun acceptAllPending(pending: List<PendingTransaction>): List<Long> {
@@ -72,6 +90,7 @@ class TransactionRepositoryImpl @Inject constructor(
                     category = p.category,
                     type = p.type,
                     notes = p.notes,
+                    cardId = resolveCardId(p),
                 )
             }
             val newIds = transactionDao.insertAll(transactions.map { it.toEntity() })
@@ -105,6 +124,7 @@ private fun PendingTransaction.toTransaction(
     category: ExpenseCategory,
     type: TransactionType,
     notes: String,
+    cardId: Long? = null,
 ): Transaction = Transaction(
     amount = amount,
     merchant = merchant,
@@ -115,4 +135,9 @@ private fun PendingTransaction.toTransaction(
     notes = notes,
     smsBody = smsBody,
     createdAt = createdAt,
+    cardId = cardId,
 )
+
+// A debit posted for a card can legitimately land slightly before the
+// statement opens or right after it is due — one day of slack on each end.
+private const val CARD_LINK_WINDOW: Long = 24L * 60 * 60 * 1000

@@ -23,6 +23,7 @@ fun TransactionEntity.toDomain(): Transaction = Transaction(
     notes = notes,
     smsBody = smsBody,
     createdAt = createdAt,
+    cardId = cardId,
 )
 
 fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
@@ -36,6 +37,7 @@ fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
     notes = notes,
     smsBody = smsBody,
     createdAt = createdAt,
+    cardId = cardId,
 )
 
 fun PendingTransactionEntity.toDomain(): PendingTransaction = PendingTransaction(
@@ -93,6 +95,8 @@ fun CardBillEntity.toDomain(): CardBill = CardBill(
     isPaid = isPaid,
     paidAt = if (paidAt == 0L) null else paidAt,
     paidAmount = if (paidAmount == 0.0) null else paidAmount,
+    creditLimit = creditLimit,
+    statementStart = statementStart,
 )
 
 fun CardBill.toEntity(): CardBillEntity = CardBillEntity(
@@ -106,4 +110,6 @@ fun CardBill.toEntity(): CardBillEntity = CardBillEntity(
     isPaid = isPaid,
     paidAt = paidAt ?: 0,
     paidAmount = paidAmount ?: 0.0,
+    creditLimit = creditLimit,
+    statementStart = statementStart,
 )

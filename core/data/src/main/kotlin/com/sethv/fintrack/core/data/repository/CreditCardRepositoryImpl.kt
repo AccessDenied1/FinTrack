@@ -9,6 +9,7 @@ import com.sethv.fintrack.core.model.CardBill
 import com.sethv.fintrack.core.model.CreditCard
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class CreditCardRepositoryImpl @Inject constructor(
@@ -61,6 +62,8 @@ class CreditCardRepositoryImpl @Inject constructor(
         minDue: Double,
         dueDate: Long,
         statementLabel: String,
+        creditLimit: Double?,
+        statementStart: Long,
     ): Long {
         // A statement is identified by (card, billing cycle). Consecutive
         // cycles are ~28-31 days apart, so a TIGHT window only ever matches a
@@ -71,29 +74,52 @@ class CreditCardRepositoryImpl @Inject constructor(
             targetDueDate = dueDate,
             toInclusive = dueDate + SAME_STATEMENT_WINDOW,
         )
-        if (existing != null && kotlin.math.abs(existing.dueDate - dueDate) <= SAME_STATEMENT_WINDOW) {
+        val billId = if (existing != null && kotlin.math.abs(existing.dueDate - dueDate) <= SAME_STATEMENT_WINDOW) {
             cardBillDao.update(
                 existing.copy(
                     totalDue = totalDue,
                     minDue = minDue,
                     dueDate = dueDate,
                     statementLabel = statementLabel.ifBlank { existing.statementLabel },
+                    creditLimit = creditLimit ?: existing.creditLimit,
+                    statementStart = statementStart.takeIf { it != 0L } ?: existing.statementStart,
                 ),
             )
-            return existing.id
+            existing.id
+        } else {
+            cardBillDao.insert(
+                CardBillEntity(
+                    id = 0,
+                    cardId = cardId,
+                    totalDue = totalDue,
+                    minDue = minDue,
+                    dueDate = dueDate,
+                    statementLabel = statementLabel,
+                    generatedAt = System.currentTimeMillis(),
+                    isPaid = false,
+                    creditLimit = creditLimit,
+                    statementStart = statementStart,
+                ),
+            )
         }
-        return cardBillDao.insert(
-            CardBillEntity(
-                id = 0,
-                cardId = cardId,
-                totalDue = totalDue,
-                minDue = minDue,
-                dueDate = dueDate,
-                statementLabel = statementLabel,
-                generatedAt = System.currentTimeMillis(),
-                isPaid = false,
-            ),
-        )
+        // The parsed available-limit is a snapshot of the CARD's limit — keep
+        // the manual override in sync whenever a fresh one arrives.
+        if (creditLimit != null) {
+            bankCardDao.updateLimit(cardId, creditLimit)
+        }
+        return billId
+    }
+
+    override suspend fun findCardByBank(bankHint: String): Long? {
+        val target = bankHint.trim().uppercase()
+        if (target.isEmpty()) return null
+        return bankCardDao.getAll().first()
+            .firstOrNull { it.bankName.trim().uppercase() == target }
+            ?.id
+    }
+
+    override suspend fun updateLimit(cardId: Long, limit: Double?) {
+        bankCardDao.updateLimit(cardId, limit)
     }
 
     override suspend fun markBillPaid(billId: Long, paidAmount: Double, paidAt: Long) {

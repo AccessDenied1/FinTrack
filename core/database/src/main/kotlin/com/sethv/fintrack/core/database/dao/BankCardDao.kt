@@ -29,6 +29,9 @@ interface BankCardDao {
     @Query("UPDATE credit_cards SET label = :label WHERE id = :id")
     suspend fun rename(id: Long, label: String)
 
+    @Query("UPDATE credit_cards SET creditLimitOverride = :limit WHERE id = :id")
+    suspend fun updateLimit(id: Long, limit: Double?)
+
     @Query("DELETE FROM credit_cards WHERE id = :id")
     suspend fun deleteById(id: Long)
 
