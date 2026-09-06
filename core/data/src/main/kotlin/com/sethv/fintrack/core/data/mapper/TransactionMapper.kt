@@ -74,6 +74,7 @@ fun BankCardEntity.toDomain(): CreditCard = CreditCard(
     lastFour = lastFour,
     label = label,
     createdAt = createdAt,
+    creditLimitOverride = creditLimitOverride,
 )
 
 fun CreditCard.toEntity(): BankCardEntity = BankCardEntity(
@@ -82,6 +83,7 @@ fun CreditCard.toEntity(): BankCardEntity = BankCardEntity(
     lastFour = lastFour,
     label = label,
     createdAt = createdAt,
+    creditLimitOverride = creditLimitOverride,
 )
 
 fun CardBillEntity.toDomain(): CardBill = CardBill(

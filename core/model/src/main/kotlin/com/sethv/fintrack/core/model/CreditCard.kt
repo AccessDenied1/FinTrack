@@ -6,6 +6,7 @@ data class CreditCard(
     val lastFour: String,
     val label: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    val creditLimitOverride: Double? = null,
 ) {
     /** e.g. "HDFC •• 4521" */
     fun displayName(): String = "${bankName.uppercase()} •• $lastFour"
