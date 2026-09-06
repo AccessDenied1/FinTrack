@@ -71,3 +71,22 @@ val CategoryPalette: List<Color> = listOf(
 
 fun colorForCategoryIndex(index: Int): Color =
     CategoryPalette[index.mod(CategoryPalette.size)]
+
+// Bank inks for the card carousel — distinct muted inks per bank so each
+// page reads as a different paper, with a neutral ink for unknown banks.
+val BankInkHdfc = Color(0xFF1D3557)
+val BankInkIcici = Color(0xFF3D405B)
+val BankInkSbi = Color(0xFF6D597A)
+val BankInkAxis = Color(0xFF815582)
+val BankInkDefault = Color(0xFF4A4642)
+
+fun bankColor(bankHint: String): Color {
+    val bank = bankHint.trim().uppercase()
+    return when {
+        bank.contains("HDFC") -> BankInkHdfc
+        bank.contains("ICICI") -> BankInkIcici
+        bank.contains("SBI") -> BankInkSbi
+        bank.contains("AXIS") -> BankInkAxis
+        else -> BankInkDefault
+    }
+}

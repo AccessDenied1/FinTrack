@@ -354,6 +354,17 @@ class CardsViewModelTest {
     }
 
     @Test
+    fun `pager page count equals the cards list`() = runTest(testDispatcher) {
+        val secondCard = CreditCard(id = 2, bankName = "ICICI", lastFour = "8877")
+        val vm = buildVm(listOf(card, secondCard), listOf(bill(id = 1, totalDue = 1_000.0, dueDate = dueIn(5))))
+        backgroundScope.launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(2, vm.uiState.value.cards.size)
+        assertEquals(listOf(1L, 2L), vm.uiState.value.cards.map { it.id })
+    }
+
+    @Test
     fun `onUpdateLimit delegates to repository`() = runTest(testDispatcher) {
         val vm = buildVm(listOf(card), emptyList())
         coEvery { repository.updateLimit(card.id, 123_456.0) } returns Unit

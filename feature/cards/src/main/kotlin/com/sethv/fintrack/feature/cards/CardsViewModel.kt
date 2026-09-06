@@ -60,6 +60,7 @@ data class CardInsights(
 )
 
 data class CardsUiState(
+    val cards: List<CreditCard> = emptyList(),
     val hasCards: Boolean = false,
     val totalOutstanding: Double = 0.0,
     val nearestDue: BillRow? = null,
@@ -112,6 +113,7 @@ class CardsViewModel @Inject constructor(
         }
 
         CardsUiState(
+            cards = cards,
             hasCards = rows.isNotEmpty() || cards.isNotEmpty(),
             totalOutstanding = unpaidRows.sumOf { it.bill.totalDue },
             nearestDue = unpaidRows.firstOrNull(),
