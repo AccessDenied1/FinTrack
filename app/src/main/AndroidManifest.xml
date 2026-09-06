@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- SMS permissions imply telephony hardware; required=false keeps ChromeOS
+         installable while SMS features degrade gracefully on non-telephony devices. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
     <application
         android:name=".FinTrackApplication"
         android:allowBackup="true"
