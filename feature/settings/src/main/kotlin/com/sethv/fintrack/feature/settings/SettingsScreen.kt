@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Info
@@ -30,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -48,11 +51,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sethv.fintrack.core.model.CreditCard
 import com.sethv.fintrack.core.ui.theme.FinTrackShape
 import com.sethv.fintrack.core.ui.theme.FinTrackSpacing
+import com.sethv.fintrack.core.ui.util.Format
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +78,8 @@ fun SettingsScreen(
     } ?: "2"
 
     var confirmDelete by remember { mutableStateOf(false) }
+    var limitCard by remember { mutableStateOf<CreditCard?>(null) }
+    val cards by viewModel.cards.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -101,6 +110,26 @@ fun SettingsScreen(
                     onClick = { confirmDelete = true },
                     tint = MaterialTheme.colorScheme.error,
                 )
+            }
+
+            SettingsSection(title = "CREDIT CARDS") {
+                if (cards.isEmpty()) {
+                    SettingsItem(
+                        icon = Icons.Outlined.CreditCard,
+                        title = "Set credit limit",
+                        subtitle = "No cards yet — they appear automatically from SMS",
+                        onClick = {},
+                    )
+                } else {
+                    cards.forEach { card ->
+                        SettingsItem(
+                            icon = Icons.Outlined.CreditCard,
+                            title = card.displayName(),
+                            subtitle = "Limit: " + (card.creditLimitOverride?.let { Format.currency(it) } ?: "not set"),
+                            onClick = { limitCard = card },
+                        )
+                    }
+                }
             }
 
             SettingsSection(title = "ABOUT") {
@@ -179,6 +208,54 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
     }
+
+    limitCard?.let { card ->
+        CardLimitDialog(
+            card = card,
+            onDismiss = { limitCard = null },
+            onSave = { amount ->
+                viewModel.onUpdateLimit(card.id, amount)
+                limitCard = null
+            },
+            onClear = {
+                viewModel.onUpdateLimit(card.id, null)
+                limitCard = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun CardLimitDialog(card: CreditCard, onDismiss: () -> Unit, onSave: (Double) -> Unit, onClear: () -> Unit) {
+    var text by remember { mutableStateOf(card.creditLimitOverride?.toString() ?: "") }
+    val amountPattern = remember { Regex("^\\d*\\.?\\d*$") }
+    val parsed = text.toDoubleOrNull()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = FinTrackShape.Medium,
+        title = { Text("Set limit — ${card.displayName()}", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { v -> if (v.isEmpty() || v.matches(amountPattern)) text = v },
+                    prefix = { Text("₹") },
+                    label = { Text("Credit limit") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = FinTrackShape.Small,
+                )
+                if (card.creditLimitOverride != null) {
+                    TextButton(onClick = onClear) { Text("Clear limit") }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(parsed!!) }, enabled = parsed != null && parsed > 0.0, shape = FinTrackShape.Pill) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
