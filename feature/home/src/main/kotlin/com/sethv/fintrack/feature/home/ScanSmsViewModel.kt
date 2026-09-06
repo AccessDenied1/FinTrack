@@ -2,10 +2,12 @@ package com.sethv.fintrack.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sethv.fintrack.core.common.di.Dispatcher
+import com.sethv.fintrack.core.common.di.FinTrackDispatchers
 import com.sethv.fintrack.service.sms.HistoricalSmsProcessor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -35,6 +37,7 @@ sealed interface ScanNavEvent {
 @HiltViewModel
 class ScanSmsViewModel @Inject constructor(
     private val historicalSmsProcessor: HistoricalSmsProcessor,
+    @Dispatcher(FinTrackDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val _scanState = MutableStateFlow(ScanState())
@@ -45,9 +48,9 @@ class ScanSmsViewModel @Inject constructor(
 
     fun startScan() {
         if (_scanState.value.status == ScanStatus.SCANNING) return
+        _scanState.update { it.copy(status = ScanStatus.SCANNING) }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            _scanState.update { it.copy(status = ScanStatus.SCANNING) }
+        viewModelScope.launch(ioDispatcher) {
             try {
                 val count = historicalSmsProcessor.scanAndProcess()
                 _scanState.update {
