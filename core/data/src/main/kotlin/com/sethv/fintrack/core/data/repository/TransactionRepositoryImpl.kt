@@ -11,7 +11,6 @@ import com.sethv.fintrack.core.model.PendingTransaction
 import com.sethv.fintrack.core.model.Transaction
 import com.sethv.fintrack.core.model.TransactionType
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -55,19 +54,14 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Lazy credit-card link: when the pending row names a bank that matches a
-     * registered card AND its timestamp falls inside that card's matching
-     * unpaid bill window [statementStart - 1d, dueDate + 1d], returns the card
-     * id; otherwise null (old rows and bank-name-only rows stay unlinked).
+     * Lazy credit-card link: ambiguity-aware — delegates to
+     * [CreditCardRepository.findCardIdForTimestamp], which links only when the
+     * timestamp falls in exactly ONE same-bank card's unpaid bill window
+     * ([statementStart] - 1d .. dueDate + 1d). Old rows, bank-name-only rows
+     * and ambiguous multi-card windows stay unlinked (null).
      */
-    private suspend fun resolveCardId(pending: PendingTransaction): Long? {
-        val cardId = creditCardRepository.findCardByBank(pending.bank) ?: return null
-        val bill = creditCardRepository.getBillsForCard(cardId).first()
-            .filter { !it.isPaid && it.statementStart > 0L }
-            .firstOrNull { pending.dateTime in (it.statementStart - CARD_LINK_WINDOW)..(it.dueDate + CARD_LINK_WINDOW) }
-            ?: return null
-        return cardId
-    }
+    private suspend fun resolveCardId(pending: PendingTransaction): Long? =
+        creditCardRepository.findCardIdForTimestamp(pending.bank, pending.dateTime)
 
     override suspend fun acceptAllPending(pending: List<PendingTransaction>): List<Long> {
         if (pending.isEmpty()) return emptyList()
@@ -137,7 +131,3 @@ private fun PendingTransaction.toTransaction(
     createdAt = createdAt,
     cardId = cardId,
 )
-
-// A debit posted for a card can legitimately land slightly before the
-// statement opens or right after it is due — one day of slack on each end.
-private const val CARD_LINK_WINDOW: Long = 24L * 60 * 60 * 1000

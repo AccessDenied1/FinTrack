@@ -109,6 +109,65 @@ class CreditCardRepositoryImplTest {
     }
 
     @Test
+    fun `findCardIdForTimestamp links only when exactly one same-bank window contains timestamp`() = runTest {
+        val db = buildDb()
+        val repo = CreditCardRepositoryImpl(db.bankCardDao(), db.cardBillDao())
+        // Non-qualifying card inserted FIRST: old first-match logic would check
+        // only this card's window and give up (null) instead of finding cardA.
+        val cardOther = repo.findOrCreateCard("HDFC", "9876")
+        val cardTarget = repo.findOrCreateCard("HDFC", "4521")
+        repo.upsertBill(cardTarget, 5000.0, 250.0, DUE, "Nov", statementStart = START)
+        val start2 = DUE + 10 * DAY
+        repo.upsertBill(cardOther, 7000.0, 350.0, start2 + 30 * DAY, "Dec", statementStart = start2)
+
+        val insideTarget = START + 2 * DAY
+        assertEquals(cardTarget, repo.findCardIdForTimestamp("HDFC", insideTarget))
+        assertEquals(cardOther, repo.findCardIdForTimestamp("  hdfc  ", start2 + 2 * DAY))
+        assertNull(repo.findCardIdForTimestamp("HDFC", start2 + 60 * DAY))
+        assertNull(repo.findCardIdForTimestamp("ICICI", insideTarget))
+
+        val txnRepo = TransactionRepositoryImpl(db, db.transactionDao(), PendingTransactionRepositoryImpl(db.pendingTransactionDao()), repo)
+        val pending = insertPending(db, bank = "HDFC", dateTime = insideTarget)
+        val id = txnRepo.acceptPending(
+            pending = pending,
+            amount = pending.amount,
+            merchant = pending.merchant,
+            category = pending.category,
+            type = pending.type,
+            notes = pending.notes,
+        )
+        assertTrue(id > 0)
+        assertEquals(cardTarget, db.transactionDao().getById(id)!!.cardId)
+    }
+
+    @Test
+    fun `findCardIdForTimestamp stays null when same-bank windows overlap`() = runTest {
+        val db = buildDb()
+        val repo = CreditCardRepositoryImpl(db.bankCardDao(), db.cardBillDao())
+        val cardA = repo.findOrCreateCard("HDFC", "4521")
+        val cardB = repo.findOrCreateCard("HDFC", "9876")
+        repo.upsertBill(cardA, 5000.0, 250.0, DUE, "Nov", statementStart = START)
+        repo.upsertBill(cardB, 7000.0, 350.0, DUE, "Nov", statementStart = START)
+
+        // Inside BOTH windows — ambiguous, must not confidently pick either.
+        val ambiguous = START + 2 * DAY
+        assertNull(repo.findCardIdForTimestamp("HDFC", ambiguous))
+
+        val txnRepo = TransactionRepositoryImpl(db, db.transactionDao(), PendingTransactionRepositoryImpl(db.pendingTransactionDao()), repo)
+        val pending = insertPending(db, bank = "HDFC", dateTime = ambiguous)
+        val id = txnRepo.acceptPending(
+            pending = pending,
+            amount = pending.amount,
+            merchant = pending.merchant,
+            category = pending.category,
+            type = pending.type,
+            notes = pending.notes,
+        )
+        assertTrue(id > 0)
+        assertNull(db.transactionDao().getById(id)!!.cardId)
+    }
+
+    @Test
     fun `updateLimit persists creditLimitOverride and null clears it`() = runTest {
         val db = buildDb()
         val repo = CreditCardRepositoryImpl(db.bankCardDao(), db.cardBillDao())

@@ -118,6 +118,21 @@ class CreditCardRepositoryImpl @Inject constructor(
             ?.id
     }
 
+    override suspend fun findCardIdForTimestamp(bankHint: String, timestamp: Long): Long? {
+        val target = bankHint.trim().uppercase()
+        if (target.isEmpty()) return null
+        val candidates = bankCardDao.getAll().first()
+            .filter { it.bankName.trim().uppercase() == target }
+        if (candidates.isEmpty()) return null
+        val qualifying = candidates.filter { card ->
+            cardBillDao.findUnpaidForCard(card.id).any { bill ->
+                bill.statementStart > 0L &&
+                    timestamp in (bill.statementStart - CARD_LINK_WINDOW)..(bill.dueDate + CARD_LINK_WINDOW)
+            }
+        }
+        return qualifying.singleOrNull()?.id
+    }
+
     override suspend fun updateLimit(cardId: Long, limit: Double?) {
         bankCardDao.updateLimit(cardId, limit)
     }
@@ -177,5 +192,8 @@ class CreditCardRepositoryImpl @Inject constructor(
     private companion object {
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
         const val SAME_STATEMENT_WINDOW = 6L * DAY_MILLIS
+        // A debit posted for a card can legitimately land slightly before the
+        // statement opens or right after it is due — one day of slack on each end.
+        const val CARD_LINK_WINDOW = DAY_MILLIS
     }
 }

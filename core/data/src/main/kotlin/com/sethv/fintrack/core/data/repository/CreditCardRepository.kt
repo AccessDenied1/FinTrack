@@ -57,6 +57,16 @@ interface CreditCardRepository {
      */
     suspend fun findCardByBank(bankHint: String): Long?
 
+    /**
+     * Ambiguity-aware card link for a statement-window debit: among all cards
+     * whose bank name matches [bankHint] (case-insensitive, trimmed), returns
+     * the id only when [timestamp] falls in exactly ONE card's unpaid-bill
+     * window ([statementStart] - 1d .. dueDate + 1d, statementStart > 0).
+     * Returns null when zero or several cards qualify (ambiguous) so callers
+     * never confidently link a debit to the wrong same-bank card.
+     */
+    suspend fun findCardIdForTimestamp(bankHint: String, timestamp: Long): Long?
+
     /** Sets (or clears with null) the manual credit-limit override on a card. */
     suspend fun updateLimit(cardId: Long, limit: Double?)
 

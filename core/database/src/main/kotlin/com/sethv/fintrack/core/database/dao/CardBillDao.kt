@@ -42,6 +42,9 @@ interface CardBillDao {
         toInclusive: Long,
     ): CardBillEntity?
 
+    @Query("SELECT * FROM card_bills WHERE cardId = :cardId AND isPaid = 0")
+    suspend fun findUnpaidForCard(cardId: Long): List<CardBillEntity>
+
     @Query(
         "SELECT * FROM card_bills WHERE cardId = :cardId AND isPaid = 0 " +
             "ORDER BY dueDate ASC, generatedAt DESC LIMIT 1",
