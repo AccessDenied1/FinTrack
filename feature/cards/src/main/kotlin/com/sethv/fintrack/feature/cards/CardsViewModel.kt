@@ -9,6 +9,7 @@ import com.sethv.fintrack.core.model.CreditCard
 import com.sethv.fintrack.core.model.Transaction
 import com.sethv.fintrack.core.model.TransactionType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,6 +78,7 @@ sealed interface CardsEvent {
 class CardsViewModel @Inject constructor(
     private val repository: CreditCardRepository,
     private val transactionRepository: TransactionRepository,
+    private val clock: Clock,
 ) : ViewModel() {
 
     private val _events = MutableSharedFlow<CardsEvent>(extraBufferCapacity = 4)
@@ -84,19 +86,13 @@ class CardsViewModel @Inject constructor(
 
     private val _selectedCard = MutableStateFlow<Long?>(null)
 
-    /**
-     * Wall-clock "now" anchoring the statement-window fallback + trailing-30d
-     * trend. Defaults to the real clock; settable in tests to make the trend
-     * deterministic.
-     */
-    var now: Long = System.currentTimeMillis()
-
     val uiState: StateFlow<CardsUiState> = combine(
         repository.getAllCards(),
         repository.getAllBills(),
         transactionRepository.getAllTransactions(),
         _selectedCard,
     ) { cards, bills, transactions, selectedCardId ->
+        val now = clock.millis()
         val cardsById = cards.associateBy { it.id }
         val rows = bills.mapNotNull { bill -> cardsById[bill.cardId]?.let { BillRow(bill, it) } }
 

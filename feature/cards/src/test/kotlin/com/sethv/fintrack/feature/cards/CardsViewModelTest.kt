@@ -11,6 +11,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -107,9 +109,8 @@ class CardsViewModelTest {
         every { repository.getAllCards() } returns flowOf(cards)
         every { repository.getAllBills() } returns flowOf(bills)
         every { transactionRepository.getAllTransactions() } returns flowOf(transactions)
-        val vm = CardsViewModel(repository, transactionRepository)
-        vm.now = now
-        return vm
+        val clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.systemDefault())
+        return CardsViewModel(repository, transactionRepository, clock)
     }
 
     @Test
@@ -229,6 +230,20 @@ class CardsViewModelTest {
 
         val insights = vm.uiState.value.insights[card.id]!!
         assertNull(insights.limit)
+        assertNull(insights.utilization)
+    }
+
+    @Test
+    fun `utilization null when limit is zero`() = runTest(testDispatcher) {
+        val vm = buildVm(
+            cards = listOf(card.copy(creditLimitOverride = 0.0)),
+            bills = listOf(bill(id = 1, totalDue = 42_000.0, dueDate = dueIn(5))),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        val insights = vm.uiState.value.insights[card.id]!!
+        assertEquals(0.0, insights.limit!!, 0.01)
         assertNull(insights.utilization)
     }
 
