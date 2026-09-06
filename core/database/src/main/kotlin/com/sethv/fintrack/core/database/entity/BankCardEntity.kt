@@ -17,4 +17,5 @@ data class BankCardEntity(
     val lastFour: String,
     val label: String,
     val createdAt: Long,
+    val creditLimitOverride: Double? = null,
 )

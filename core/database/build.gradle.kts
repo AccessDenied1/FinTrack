@@ -13,6 +13,9 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
 }
 
 // NOTE: Room schema export is disabled (see @Database exportSchema=false).

@@ -23,7 +23,7 @@ import com.sethv.fintrack.core.database.entity.TransactionEntity
         BankCardEntity::class,
         CardBillEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

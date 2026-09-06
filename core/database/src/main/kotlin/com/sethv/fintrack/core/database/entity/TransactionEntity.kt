@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
     tableName = "transactions",
     indices = [
         Index(value = ["dateTime"]),
+        Index(value = ["cardId"]),
     ],
 )
 data class TransactionEntity(
@@ -22,4 +23,5 @@ data class TransactionEntity(
     val notes: String,
     val smsBody: String,
     val createdAt: Long,
+    val cardId: Long? = null,
 )

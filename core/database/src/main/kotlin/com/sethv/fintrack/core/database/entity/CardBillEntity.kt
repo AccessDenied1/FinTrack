@@ -24,4 +24,6 @@ data class CardBillEntity(
     val isPaid: Boolean,
     val paidAt: Long = 0,
     val paidAmount: Double = 0.0,
+    val creditLimit: Double? = null,
+    val statementStart: Long = 0L,
 )
