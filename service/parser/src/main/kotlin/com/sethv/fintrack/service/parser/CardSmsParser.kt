@@ -11,6 +11,8 @@ data class ParsedCardBill(
     val minDue: Double?,
     val dueDate: Long,
     val statementLabel: String,
+    val creditLimit: Double? = null,
+    val statementStart: Long = 0L,
 )
 
 /** A "payment received" confirmation for a specific card. */
@@ -48,6 +50,10 @@ class CardSmsParser @Inject constructor() {
         RegexOption.IGNORE_CASE,
     )
 
+    private companion object {
+        const val DAY_MILLIS: Long = 24L * 60 * 60 * 1000
+    }
+
     fun parseBill(sms: RawSms): ParsedCardBill? {
         val body = sms.body
         val lower = body.lowercase()
@@ -68,6 +74,9 @@ class CardSmsParser @Inject constructor() {
             ?: return null
         val minDue = MIN_DUE_PATTERN.find(body)?.let { amountFrom(it) }
         val dueDate = ParserUtils.extractDueDate(body, sms.timestamp) ?: return null
+        val creditLimit = ParserUtils.extractCreditLimit(body)
+        val statementStart = ParserUtils.extractStatementStart(body, sms.timestamp)
+            ?: (dueDate - 30L * DAY_MILLIS)
 
         return ParsedCardBill(
             cardLastFour = last4,
@@ -76,6 +85,8 @@ class CardSmsParser @Inject constructor() {
             minDue = minDue,
             dueDate = dueDate,
             statementLabel = statementMonthLabel(sms.timestamp),
+            creditLimit = creditLimit,
+            statementStart = statementStart,
         )
     }
 

@@ -218,4 +218,40 @@ internal object ParserUtils {
         }
         return date.atStartOfDay(zone).toInstant().toEpochMilli()
     }
+
+    // ------------------------------------------------------------------
+    // Task 2: limit + period extraction (verbatim patterns per spec)
+    // ------------------------------------------------------------------
+
+    private val AVAILABLE_LIMIT_PATTERN = Regex(
+        """available\s*limit\s*(?:is|:)?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun extractCreditLimit(text: String): Double? =
+        AVAILABLE_LIMIT_PATTERN.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+
+    private val STATEMENT_PERIOD_PATTERN = Regex(
+        """statement\s*period\s*(\d{1,2}[-/\s][A-Za-z]{3,9})\s*[−\-to]+\s*(\d{1,2}[-/\s][A-Za-z]{3,9})""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun extractStatementStart(text: String, smsTime: Long): Long? {
+        val match = STATEMENT_PERIOD_PATTERN.find(text) ?: return null
+        val startToken = match.groupValues[1]
+        val tokenMatch = Regex("""(\d{1,2})\s*[-/\s]\s*([A-Za-z]{3,9})""").find(startToken) ?: return null
+        val day = tokenMatch.groupValues[1].toIntOrNull()?.takeIf { it in 1..31 } ?: return null
+        val monthToken = tokenMatch.groupValues[2]
+        val month = MONTH_BY_NAME[monthToken.take(3).lowercase()] ?: return null
+        val zone = java.time.ZoneId.systemDefault()
+        val smsDate = java.time.Instant.ofEpochMilli(smsTime).atZone(zone).toLocalDate()
+        var date = runCatching { java.time.LocalDate.of(smsDate.year, month, day) }.getOrNull() ?: return null
+        if (date.isAfter(smsDate)) {
+            date = date.minusYears(1)
+        } else if (date.isBefore(smsDate.minusDays(90)) && date.plusYears(1).isBefore(smsDate.plusDays(30))) {
+            // Keep as is; statement start is typically within ~40 days before sms.
+            // No adjustment needed for very old dates except year-wrap case handled above.
+        }
+        return date.atStartOfDay(zone).toInstant().toEpochMilli()
+    }
 }

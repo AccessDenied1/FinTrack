@@ -4,6 +4,7 @@ import com.sethv.fintrack.core.model.RawSms
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -102,6 +103,49 @@ class CardSmsParserTest {
     @Test
     fun `payment parse rejects statement SMS`() {
         assertNull(parser.parsePayment(sms("Statement XX4521 total due Rs 45,000 due 18-Aug")))
+    }
+
+    // ------------------------------------------------------------------
+    // Task 2: limit + period extraction
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `parses available limit and statement period`() {
+        val raw = RawSms(
+            sender = "AD-HDFCBK",
+            body = "Available limit Rs 1,00,000 Outstanding Rs 42,000 Statement period 15 Oct - 14 Nov Total Due Rs 5,000 Due Date 05 Dec Card XX4521",
+            timestamp = 1_700_000_000_000L,
+        )
+        val bill = parser.parseBill(raw)!!
+        assertNotNull(bill)
+        assertEquals(100000.0, bill.creditLimit!!, 0.01)
+        assertTrue(bill.statementStart > 0)
+    }
+
+    @Test
+    fun `no limit returns null`() {
+        val raw = RawSms(
+            sender = "AD-HDFCBK",
+            body = "Total Due Rs 5,000 Due Date 05 Dec Card XX1234",
+            timestamp = 1_700_000_000_000L,
+        )
+        val bill = parser.parseBill(raw)!!
+        assertNotNull(bill)
+        assertEquals(null, bill.creditLimit)
+    }
+
+    @Test
+    fun `statement period fallback is dueDate minus 30 days when missing`() {
+        val raw = RawSms(
+            sender = "AD-HDFCBK",
+            body = "Card XX1234 Total Due Rs 5,000 Due Date 05 Dec",
+            timestamp = 1_700_000_000_000L,
+        )
+        val bill = parser.parseBill(raw)!!
+        assertNotNull(bill)
+        // fallback: 30 * DAY_MILLIS before dueDate
+        val expected = bill.dueDate - 30L * 24 * 60 * 60 * 1000
+        assertEquals(expected, bill.statementStart)
     }
 
     private fun toLocalDate(epochMillis: Long): LocalDate =
