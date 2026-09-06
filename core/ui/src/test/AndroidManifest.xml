@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- createComposeRule() launches a bare ComponentActivity. In a library the
+         main manifest is empty, so the activity must be declared here for Robolectric
+         to resolve it. -->
+    <application>
+        <activity android:name="androidx.activity.ComponentActivity" />
+    </application>
+
+</manifest>
