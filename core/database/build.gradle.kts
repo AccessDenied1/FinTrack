@@ -5,6 +5,10 @@ plugins {
 
 android {
     namespace = "com.sethv.fintrack.core.database"
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -16,6 +20,9 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
+    testImplementation("org.robolectric:robolectric:4.11.1")
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("androidx.sqlite:sqlite-framework:2.4.0")
 }
 
 // NOTE: Room schema export is disabled (see @Database exportSchema=false).

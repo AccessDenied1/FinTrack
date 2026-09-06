@@ -70,7 +70,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("ALTER TABLE card_bills ADD COLUMN creditLimit REAL")
         db.execSQL("ALTER TABLE card_bills ADD COLUMN statementStart INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE transactions ADD COLUMN cardId INTEGER")
-        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_cardId ON transactions(cardId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_cardId` ON `transactions` (`cardId`)")
         db.execSQL("ALTER TABLE credit_cards ADD COLUMN creditLimitOverride REAL")
     }
 }
